@@ -1,0 +1,101 @@
+.logo {
+  display: flex;
+  align-items: center;
+
+  a {
+    display: inline-flex;
+    align-items: center;
+    color: #fff;
+  }
+}
+
+.desktop-account-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.main-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Matches the Segmented track on Browse: 4px between pills, 4px around. */
+  gap: var(--space-1);
+  padding: var(--space-1);
+}
+
+.main-nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  height: 36px;
+  padding-inline: var(--space-4);
+  border-radius: 100px;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color 160ms ease, background 160ms ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+  }
+
+  &.active {
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+    font-weight: 600;
+  }
+}
+
+.header-account {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 36px;
+  max-width: 220px;
+  padding-inline: var(--space-4);
+  border-radius: 100px;
+  border: 0;
+  color: #fff;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  transition: border-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+  }
+
+  &.loading {
+    cursor: default;
+  }
+}
+
+.header-account-caret {
+  font-size: 11px;
+}
+
+.drawer-button {
+  margin: auto 0;
+  border-color: var(--accent);
+  background-color: var(--brand-deep);
+
+  .drawer-button-icon {
+    color: var(--accent);
+  }
+}

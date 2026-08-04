@@ -1,0 +1,14 @@
+# Secrets must never enter an image. The Dockerfile does `COPY . .`, so anything
+# not listed here ships in a layer and is readable by anyone with the image.
+.env
+.env.*
+!.env.prod.example
+
+.git
+.gitignore
+__pycache__/
+*.py[cod]
+*.sqlite3
+.pytest_cache/
+.venv/
+venv/

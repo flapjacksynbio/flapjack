@@ -1,0 +1,19 @@
+version: '3.3'
+services:
+  web:
+    container_name: flapjack_front
+    build:
+      context: ./
+      args:
+        app_env: development
+    ports:
+      - '3000:3000' # expose ports - HOST:CONTAINER
+    environment:
+      NODE_ENV: development
+      REACT_APP_HTTP_API: http://localhost:8000/api/
+      REACT_APP_WS_API: ws://localhost:8000/ws/
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - './:/usr/src/app'
+      - '/usr/src/app/node_modules'
+    stdin_open: true

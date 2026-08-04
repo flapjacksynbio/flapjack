@@ -1,0 +1,84 @@
+# Production stack. Not for local development; use docker-compose.yml for that.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Requires flapjack_api/.env.prod, created from flapjack_api/.env.prod.example.
+# Differences from the local stack that matter:
+#   - settings come from flapjack_api.settings_prod, which reads every secret
+#     from the environment and refuses to start if one is missing
+#   - migrations are NOT run automatically; run them as an explicit release step
+#   - only nginx is exposed to the host
+
+services:
+  api:
+    build:
+      context: ./flapjack_api
+    command: >
+      sh -c "until pg_isready -h $${SQL_HOST} -p $${SQL_PORT} -U $${SQL_USER}; do sleep 1; done &&
+             gunicorn flapjack_api.asgi:application
+                      -w 4 -k uvicorn.workers.UvicornWorker
+                      -b 0.0.0.0:8000 --timeout 3600"
+    env_file:
+      - ./flapjack_api/.env.prod
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./flapjack_frontend
+      args:
+        app_env: production
+    environment:
+      NODE_ENV: production
+    depends_on:
+      - api
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.25-alpine
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+      - frontend
+    restart: unless-stopped
+
+  db:
+    image: postgres:12.1
+    environment:
+      POSTGRES_DB: ${SQL_DATABASE}
+      POSTGRES_USER: ${SQL_USER}
+      POSTGRES_PASSWORD: ${SQL_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - db:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - redis:/data
+    restart: unless-stopped
+
+volumes:
+  db:
+  redis:

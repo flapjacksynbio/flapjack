@@ -1,0 +1,48 @@
+# --- Secrets: never commit ---
+# .env.prod holds the live SECRET_KEY and database password. The values in the
+# working copy were committed to the previous repository and must be treated as
+# public: regenerate them on the server. Only the template is tracked.
+.env
+.env.*
+!.env.prod.example
+!.env.dev.example
+
+# --- Database dumps: real measurement and account data ---
+# scripts/backup_db.sh writes here. Dumps include the auth_user table, so they
+# carry password hashes. Keep them out of the repository.
+backups/
+
+# --- Python ---
+# cert/ and registry.sql came from the archived flapjack_api repository, which
+# had its own ignore file before the three repositories were consolidated.
+cert/
+registry.sql
+*.pot
+__pycache__/
+*.py[cod]
+*.egg-info/
+staticfiles/
+*.sqlite3
+
+# --- Node / frontend ---
+coverage/
+.eslintcache
+node_modules/
+/flapjack_frontend/build/
+npm-debug.log*
+yarn-error.log*
+
+# --- Editors and OS ---
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# --- LaTeX build artifacts (Paper/) ---
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.synctex.gz
+acs-manuscript.bib

@@ -1,0 +1,190 @@
+/* ── Home hero ─────────────────────────────────── */
+.container {
+  margin: 0;
+  min-height: min(calc(100vh - 64px), 860px);
+  display: grid;
+  grid-template-rows: 380px auto auto;
+}
+
+.home-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--space-5);
+  background-color: var(--hero-bg);
+  border-top-left-radius: var(--radius);
+  border-top-right-radius: var(--radius);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+
+  &.ant-card {
+    border: none;
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+
+  .ant-card-body {
+    padding: 0;
+  }
+}
+
+.home-hero-lockup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+
+  img {
+    height: 10em;
+    width: auto;
+    transform: translateY(0);
+    flex-shrink: 0;
+  }
+
+  .home-title {
+    margin-bottom: 0;
+    color: var(--text);
+    font-size: clamp(1.75rem, 7vw, 4.5rem);
+    margin-bottom: 0;
+  }
+}
+
+/* ── Cards panel ───────────────────────────────── */
+.home-cards-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-5);
+  padding-top: var(--space-5);
+}
+
+/* ── Action card grid ──────────────────────────── */
+.home-action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
+
+  &--centered {
+    grid-template-columns: repeat(2, minmax(0, 320px));
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .home-hero-lockup {
+    flex-direction: column;
+    gap: var(--space-3);
+    text-align: center;
+
+    img {
+      height: 6em;
+    }
+  }
+
+  .home-action-grid {
+    grid-template-columns: 1fr;
+    padding: var(--space-4);
+
+    &--centered {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+/* ── Action card ───────────────────────────────── */
+.home-action-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--space-5) var(--space-4) var(--space-4);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 12px var(--card-shadow);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color var(--transition), box-shadow var(--transition),
+    transform var(--transition);
+
+  &:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 20px var(--accent-bg);
+    transform: translateY(-2px);
+    color: var(--text);
+    text-decoration: none;
+  }
+}
+
+.home-action-icon {
+  font-size: 2rem;
+  color: var(--accent);
+  margin-bottom: var(--space-3);
+  transition: color var(--transition), opacity var(--transition);
+
+  .home-action-card:hover & {
+    color: var(--accent);
+  }
+}
+
+.home-action-title {
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--text);
+  margin-bottom: var(--space-2);
+  line-height: 1.3;
+}
+
+.home-action-desc {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.home-tagline.ant-typography {
+  max-width: 58ch;
+  margin-bottom: 0;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  text-align: center;
+}
+
+.recent-work {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-3);
+  padding: 0 var(--space-6) var(--space-5);
+}
+
+@media (max-width: 768px) {
+  .recent-work {
+    padding: 0 var(--space-4) var(--space-4);
+  }
+}
+
+.home-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* antd Title carries a tall line-height and margins, so flex was centring a box
+   far bigger than the glyphs. Collapse the box to the em square, then nudge for
+   x-height, which sits just above the em center. */
+.home-hero-lockup .home-title.ant-typography {
+  margin: 0;
+  line-height: 1;
+  transform: translateY(-0.02em);
+}
+
+.home-tagline.ant-typography {
+  text-align: left;
+}
+
+@media (max-width: 768px) {
+  .home-hero {
+    gap: var(--space-3);
+  }
+}

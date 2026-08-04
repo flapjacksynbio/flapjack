@@ -1,0 +1,58 @@
+/* ── Data view layout ──────────────────────────── */
+.provider-select-options {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.data-view-layout {
+  width: 100%;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.data-view-sidebar,
+.data-view-plot {
+  min-width: 0;
+  padding: var(--space-4);
+}
+
+.data-view-plot-content {
+  width: 100%;
+}
+
+.data-view-plot .js-plotly-plot,
+.data-view-plot .plot-container {
+  max-width: 100%;
+}
+
+/* Plotly paints its own white background to a hard rectangle. Clipping it to
+   the shared radius makes it read as a sheet on the page rather than an
+   unstyled block, and keeps one figure for screen and export. */
+.data-view-plot .js-plotly-plot {
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+@media (max-width: 991px) {
+  .data-view-plot {
+    padding: var(--space-3) 0;
+  }
+}
+
+/* Layout paints colorBgLayout, which showed as a gray slab behind the query
+   accordion and around the Plot button. */
+.data-view-sidebar .ant-layout,
+.data-view-sidebar .ant-layout-content,
+.data-view-sidebar .ant-layout-footer {
+  background: transparent;
+}
+
+.provider-search {
+  border-radius: 100px;
+  padding-inline: var(--space-3);
+  margin-block: var(--space-2);
+}
+
+.data-view-title.ant-typography {
+  margin-bottom: var(--space-4);
+}

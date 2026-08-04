@@ -1,0 +1,175 @@
+/* ── Design tokens ─────────────────────────────────────────────────────────
+   Styles only the parts that are not AntD components: nav, hero, home cards,
+   logo. Everything AntD is themed from src/theme.js, which carries the same
+   values. Change both together.
+
+   Brand is one hue, 210 degrees, from the navbar blue. Only lightness varies.
+   Neutrals follow web-design-example.
+   ───────────────────────────────────────────────────────────────────────── */
+:root {
+  /* One hue, 210 degrees. Lightness varies by role and mode; the hue does not. */
+  --brand-deep: #022e5a;
+  --brand: #1d73c9;
+
+  --accent: var(--brand);
+  --accent-hover: #4a90d9;
+  --accent-dark: var(--brand-deep);
+  --accent-text: #ffffff;
+  --accent-bg: rgba(29, 115, 201, 0.1);
+
+  --bg: #e9f0f7;
+  --card-bg: #ffffff;
+  --card-border: rgba(0, 0, 0, 0.08);
+  --card-shadow: rgba(0, 0, 0, 0.06);
+
+  --text: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #aeaeb2;
+
+  --border: rgba(0, 0, 0, 0.08);
+  --input-bg: #ffffff;
+  --input-border: rgba(0, 0, 0, 0.1);
+
+  --header-bg: var(--brand-deep);
+  --hero-bg: var(--card-bg);
+
+  --radius: 16px;
+  --radius-sm: 8px;
+  --transition: 200ms ease;
+
+  /* 8px scale. Matches the padding and margin tokens in theme.js. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --space-6: 48px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #519eec;
+    --accent-hover: #7fb8f2;
+    --accent-bg: rgba(81, 158, 236, 0.16);
+
+    --bg: #141c24;
+    --card-bg: #1e2933;
+    --card-border: rgba(255, 255, 255, 0.08);
+    --card-shadow: rgba(0, 0, 0, 0.4);
+
+    --text: #f5f5f7;
+    --text-secondary: #a1a1a6;
+    --text-tertiary: #636366;
+
+    --border: rgba(255, 255, 255, 0.08);
+    --input-bg: #25303c;
+    --input-border: rgba(255, 255, 255, 0.1);
+
+    --hero-bg: var(--card-bg);
+  }
+}
+
+/* ── Layout ────────────────────────────────────── */
+$contentPadding: 24px;
+$headerHeight: 64px;
+$sides-padding: calc(max(24px, 50vw - 576px));
+
+.layout {
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.site-layout-content {
+  background: var(--card-bg);
+  padding: var(--space-4) var(--space-5);
+  min-height: calc(100vh - 166px);
+  border-radius: var(--radius);
+}
+
+/* ── Page scaffolding ──────────────────────────── */
+.page-header {
+  margin-bottom: var(--space-4);
+}
+
+.page-title.ant-typography {
+  margin-bottom: var(--space-1);
+}
+
+.page-subtitle.ant-typography {
+  margin-bottom: 0;
+  color: var(--text-secondary);
+}
+
+.page-tabs {
+  margin-bottom: var(--space-4);
+}
+
+.layout.no-footer .site-layout-content {
+  min-height: auto;
+}
+
+#flapjack-content.home-page .site-layout-content {
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ── Header ────────────────────────────────────── */
+#flapjack-header {
+  position: sticky;
+  top: 0;
+  /* Below antd's overlays (1000+) so dropdowns and modals still cover it. */
+  z-index: 100;
+  height: $headerHeight;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 0 $sides-padding;
+  background: var(--header-bg);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+
+  @media (max-width: 960px) {
+    display: flex;
+    justify-content: space-between;
+  }
+}
+
+/* ── Content ───────────────────────────────────── */
+#flapjack-content {
+  flex: 1;
+  padding: $contentPadding $sides-padding;
+  background: var(--bg);
+}
+
+#flapjack-content.full-width {
+  padding: $contentPadding 24px;
+}
+
+/* ── Logo ──────────────────────────────────────── */
+.logo img {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--space-2);
+}
+
+.logo .logo-title {
+  color: #fff;
+  margin-left: var(--space-2);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  /* Same reason as the hero lockup: center the em square, not the line box. */
+  line-height: 1;
+  transform: translateY(-0.02em);
+}
+
+/* ── Footer ────────────────────────────────────── */
+.footer {
+  text-align: center;
+}
+
+/* Validation messages interpolate the field's name prop, which is lowercase. */
+.ant-form-item-explain-error::first-letter {
+  text-transform: uppercase;
+}

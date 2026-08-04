@@ -1,0 +1,68 @@
+# Production stack backed by Azure Database for PostgreSQL Flexible Server.
+#
+#   docker compose -f docker-compose.azure-managed.yml up -d --build
+#
+# Same as docker-compose.prod.yml with one difference: there is no db service.
+# Postgres is a managed server outside the stack, so the database no longer
+# depends on a Docker volume surviving, and backups and point-in-time restore
+# come from Azure rather than from a cron job somebody has to remember.
+#
+# Requires flapjack_api/.env.prod with SQL_HOST pointing at the managed server,
+# SQL_PORT 5432, and SQL_SSLMODE=require. Migrations are still an explicit
+# release step; see docs/deployment/azure.md.
+
+services:
+  api:
+    build:
+      context: ./flapjack_api
+    command: >
+      sh -c "until pg_isready -h $${SQL_HOST} -p $${SQL_PORT} -U $${SQL_USER}; do sleep 1; done &&
+             gunicorn flapjack_api.asgi:application
+                      -w 4 -k uvicorn.workers.UvicornWorker
+                      -b 0.0.0.0:8000 --timeout 3600"
+    env_file:
+      - ./flapjack_api/.env.prod
+    depends_on:
+      redis:
+        condition: service_healthy
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./flapjack_frontend
+      args:
+        app_env: production
+    environment:
+      NODE_ENV: production
+    depends_on:
+      - api
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.25-alpine
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+      - frontend
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - redis:/data
+    restart: unless-stopped
+
+volumes:
+  redis:

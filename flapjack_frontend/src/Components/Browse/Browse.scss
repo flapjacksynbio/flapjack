@@ -1,0 +1,53 @@
+.browse-uri-empty {
+  color: var(--text-tertiary);
+}
+
+.browse-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.browse-search {
+  width: 260px;
+  max-width: 100%;
+  border-radius: 100px;
+  padding-inline: var(--space-3);
+}
+
+.browse-toolbar .ant-segmented-item-label {
+  padding-inline: var(--space-4);
+}
+
+/* Items are flush by default, so the selected pill touches the hovered one. */
+.browse-toolbar .ant-segmented-group {
+  gap: var(--space-1);
+}
+
+/* Clip on the card so the table and its pagination both follow the radius. */
+.browse-card {
+  overflow: hidden;
+}
+
+.browse-card .ant-table-container,
+.browse-card .ant-table {
+  background: transparent;
+}
+
+/* Below this the two controls fight for the row, so the search takes its own. */
+@media (max-width: 860px) {
+  .browse-toolbar {
+    align-items: stretch;
+  }
+
+  .browse-toolbar .ant-segmented {
+    overflow-x: auto;
+  }
+
+  .browse-search {
+    width: 100%;
+  }
+}

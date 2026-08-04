@@ -1,0 +1,67 @@
+services:
+  api:
+    build:
+      context: ./flapjack_api
+    command: >
+      sh -c "until pg_isready -h db -p 5432 -U guillermo; do sleep 1; done &&
+             python manage.py migrate &&
+             gunicorn flapjack_api.asgi:application -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --timeout 3600"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./flapjack_api:/var/app/flap
+
+  frontend:
+    build:
+      context: ./flapjack_frontend
+      args:
+        app_env: development
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: development
+      REACT_APP_HTTP_API: http://localhost:8000/api/
+      REACT_APP_WS_API: ws://localhost:8000/ws/
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "3000:3000"
+    stdin_open: true
+    volumes:
+      - ./flapjack_frontend:/usr/src/app
+      - frontend_node_modules:/usr/src/app/node_modules
+
+  db:
+    image: postgres:12.1
+    environment:
+      POSTGRES_DB: registry
+      POSTGRES_USER: guillermo
+      POSTGRES_PASSWORD: 123456
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guillermo -d registry"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "5433:5432"
+    volumes:
+      - db:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - redis:/data
+
+volumes:
+  db:
+  redis:
+  frontend_node_modules:

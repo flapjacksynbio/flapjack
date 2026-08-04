@@ -1,0 +1,1114 @@
+---
+title: API Reference
+
+language_tabs: # must be one of https://git.io/vQNgJ
+  - shell
+  - python
+#  - javascript
+
+toc_footers:
+  - <a href='https://geneticlogiclab.org/'>Maintained by Genetic Logic Lab</a>
+  - <a href='https://github.com/slatedocs/slate'>Documentation Powered by Slate</a>
+
+includes:
+  - errors
+
+search: true
+
+code_clipboard: true
+---
+
+# Documentation status
+
+This reference was written between August and November 2021 against the API of
+that time. It was adopted into this project on 2026-07-13 from the retired
+`flapjack_api` repository, where it lived unpublished on the `page` branch.
+
+Verified on adoption:
+
+- The authentication endpoints (`register`, `log_in`, `refresh`) match the
+  current routes in `accounts/urls.py`.
+- The documented model endpoints match the router registrations in
+  `registry/urls.py`.
+- The websocket paths match the current routing. The four live sockets are
+  `ws/registry/upload`, `ws/registry/measurements`, `ws/plot/plot`, and
+  `ws/analysis/analysis`.
+
+Known gaps, not yet written:
+
+- `GET /api/info/` and `GET /api/auth/user_info/` were added on 2026-07-13 and
+  are documented under "Service endpoints" below, but the rest of the reference
+  has not been re-read line by line against current request and response
+  payloads.
+- The following registered endpoints have no section here: `vectorall`, `user`,
+  `assays_in_study`, `vector_in_assay`, `strain_in_assay`, `media_in_assay`,
+  and `signal_in_assay`.
+- Request and response bodies below are as of 2021 and may have drifted.
+
+Treat individual payload examples as unverified until checked against a running
+instance.
+
+# Introduction
+
+Flapjack is a data management and analysis tool for genetic circuit design. The system is implemented as a web app with a backend data registry and analysis engine accessible as a REST API. A python package is also available for easier access to the Flapjack API, in its [GitHub repository](https://github.com/flapjacksynbio/pyFlapjack).
+
+The Flapjack API is divided into two types, a RESTful API and a websocket API.
+## What is a REST API?
+
+Firstly, an API, or application programming interface, is define set of rules that define how applications or diveces can connect and communicate with each other. A way to design this applications is the RESTful API architeture, in which using HTTP request you can access to the data. 
+
+This architecture uses a define set of data types to access to a database, these sets are ``GET``, ``PUT``, ``POST`` and ``DELETE``.
+
+``GET``: Is used to retrive data.
+``PUT``: Is utilized to change the state, or to update a resourse in the database.
+``POST``: Allows us to upload data.
+``DELETE``: To delete a certain information from the repository of data.
+
+
+# Authentication
+
+Authentication is one of the endpoints of the API, this endpoint is used to register, log in and refresh the token. 
+## Register
+> To register in Flapjack, use this code:
+
+
+```python
+import requests
+
+url = "http://localhost:8000/api/auth/register/"
+
+payload = "{\n\t\"username\": \"JohnDoe\",\n\t\"password\": \"asd123\",\t\n\t\"password2\": \"asd123\",\n\t\"email\": \"john@doe.com\"\n}\n"
+headers = {}
+
+response = requests.request("POST", url, headers=headers, data=payload)
+
+print(response.text)
+
+```
+
+```shell
+curl --location --request POST 'http://localhost:8000/api/auth/register/' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+	"username": "JohnDoe",
+	"password": "asd123",
+    "password2": "asd123",
+    "email": "john@doe.com"
+}'
+```
+> response 
+
+```json
+{
+    "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTYzNzg5NTc4MSwianRpIjoiYjk3NzQwN2RmMjEwNDUzYTg0ZjA3YjEzMTlmOTY1OGIiLCJ1c2VyX2lkIjoyfQ.eb1fFQWatJiALTPEhPV4tPtPKIf7Nc1UUjLZUJVx-iU",
+    "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjM3ODA5NjgxLCJqdGkiOiJhZWMxYTAwNDE4NDE0ZjQwYWM3ZDMzYjk5YjY0ZmE0OSIsInVzZXJfaWQiOjJ9.aaa_P8F-DaLJh61gol9HoE9cpH-RAw1f4IGIs90FuWc"
+}
+```
+
+
+
+This API counts with the facility of a direct registry method.
+Required parameters:
+
+`username: JohnDoe`
+
+`password: asd123`
+
+`password2: asd123`
+
+`email: john@doe.com`
+
+## Log In
+```shell
+curl --location --request POST 'localhost:8000/api/auth/log_in/' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+	"username": "JohnDoe",
+	"password": "asd123"
+}
+'
+
+```
+> The above command returns JSON structured like this:
+
+```json
+{
+    "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTYzNzg5NTk1MCwianRpIjoiZDVkMGU0MWY2MWE4NDk3ZjlmNTEyZWVmYTVkM2ZkYzYiLCJ1c2VyX2lkIjoyfQ.spzm6fvUty333NqrOdalQuq9dP4ze8-3JuKk-UbLcyQ",
+    "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjM3ODA5ODUwLCJqdGkiOiIwZGQ4Y2Q3N2VhZDk0NTQ5OWI0Mzg5MTU4ZjYzZTYzZCIsInVzZXJfaWQiOjJ9.Pu0807dYKqHFAXyvVAbe2E6K2dkrEgb7rhs_2T2-er8",
+    "username": "JohnDoe",
+    "email": "john@doe.com"
+}
+```
+
+```python
+
+import requests
+ 
+url = "http://localhost:8000/api/auth/log_in/"
+ 
+payload = "{\n\t\"username\": \"JohnDoe\",\n\t\"password\": \"asd123\"\n}\n"
+headers = {}
+ 
+response = requests.request("POST", url, headers=headers, data=payload)
+ 
+print(response.text)
+
+```
+
+
+If you have already registerd as an user you can just log in using the API.
+
+Required parameters:
+
+`username: JohnDoe`
+
+
+`password: asd123`
+
+When you do a log_in request you receive two tokens, a ``refresh`` token and an ``access token``. The ``refresh token``is used to keep the session alive, and you can give this token to the refresh endpoint to get a new ``access token``. The ``access token`` is used to access the different endpoints of the API, by giving it as a parameter in the header of the request in the following format:
+
+``--header 'Authorization: Bearer {access token}'``
+
+In the next section of this documentation you can find examples to it.
+## Refresh
+
+```shell
+curl --location --request POST 'localhost:8000/api/auth/refresh/' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+	"refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTYzNzg5NTk1MCwianRpIjoiZDVkMGU0MWY2MWE4NDk3ZjlmNTEyZWVmYTVkM2ZkYzYiLCJ1c2VyX2lkIjoyfQ.spzm6fvUty333NqrOdalQuq9dP4ze8-3JuKk-UbLcyQ"
+}
+'
+```
+> The above command returns JSON structured like this:
+
+```json
+{
+    "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjM3ODA5OTE3LCJqdGkiOiJmM2Q1MDZiMDBhYTc0MjQ1YWI4ZWVhZWExNmMyNGJiYSIsInVzZXJfaWQiOjJ9.w7zBOCM962a5GJ6zxZXigYNTUFIkNrI0qgxNAHU_Jik"
+}
+```
+
+```python
+import requests
+import json
+url = "http://localhost:8000/api/auth/refresh/"
+refresh_token = ##obtained from the log_in request
+
+refresh = requests.post (
+	url,
+	data = {'refresh' : refresh_token}
+)
+## and now the access token is:
+refresh.json["access"]
+```
+
+This endpoint is used to keep alive the session. The uses a ``refresh token``as a parameter and it returns a ``access token``. In this way you get refreshed access token everytime you need it.
+
+# Service endpoints
+
+## Service info
+
+```shell
+curl "http://localhost:8000/api/info/"
+```
+
+```python
+import requests
+
+info = requests.get('http://localhost:8000/api/info/').json()
+```
+
+> The above command returns JSON structured like this:
+
+```json
+{
+  "name": "Flapjack API",
+  "version": "1.0.0",
+  "http_api": "http://localhost:8000/api/",
+  "ws_api": "ws://localhost:8000/ws/"
+}
+```
+
+`GET /api/info/`
+
+Returns the canonical base URLs of this backend instance, so a deployed client
+can report or discover which backend it is bound to instead of relying only on
+build-time configuration.
+
+This endpoint requires no authentication.
+
+The two base URLs are returned ready to use as the `REACT_APP_HTTP_API` and
+`REACT_APP_WS_API` values: the HTTP base includes the trailing `/api/` and the
+websocket base includes the trailing `/ws/`.
+
+By default both are derived from the incoming request. Set the
+`FLAPJACK_PUBLIC_HTTP_API` and `FLAPJACK_PUBLIC_WS_API` environment variables
+when the API runs behind a reverse proxy whose public host differs from the
+request host.
+
+## User info
+
+```shell
+curl "http://localhost:8000/api/auth/user_info/" \
+  -H "Authorization: Bearer <access_token>"
+```
+
+```python
+import requests
+
+user = requests.get(
+	'http://localhost:8000/api/auth/user_info/',
+	headers = {'Authorization': f'Bearer {access_token}'}
+).json()
+```
+
+> The above command returns JSON structured like this:
+
+```json
+{
+  "username": "jdoe",
+  "email": "jdoe@example.org",
+  "first_name": "",
+  "last_name": ""
+}
+```
+
+`GET /api/auth/user_info/`
+
+Returns the profile fields of the authenticated user. Requires a valid access
+token.
+
+Use this to refresh the stored identity after a page reload without forcing a
+new login.
+
+Privilege flags such as `is_staff` and `is_superuser` are deliberately not
+returned.
+
+# RESTapi Endpoints models
+
+```python
+
+import requests
+model = ## your desire model.
+url = f'http://localhost:8000/api/{model}/'
+access_token = ## given by the log in request.
+kwargs = ## parameters of the model.
+Id = ### The ID of the data that you want to delete or patch.
+
+### To post data
+response = requests.post(
+	url,
+	headers = {'Authorization' : 'Bearer ' + str(access_token)},
+	data = kwards
+)
+
+### To get data
+info = requests.get(
+	url, 
+	headers = {'Authorization' : 'Bearer ' + str(acces_token)},
+	data = kwargs
+)
+### To patch data
+patch = requests.patch(
+	url+f'{id}/',
+	headers= {'Authorization' : 'Bearer ' + str(access_token)},
+	data=kwargs
+)
+
+### To delete data
+
+delete = requests.delete(
+	url+f'{Id}/',
+	headers = {'Authorization' : 'Bearer ' + str(access_token)}
+)
+```
+
+The following endpoints are the ones that enable you to access to the data that you have stored in the database. You can use the ``GET``, ``POST``, ``PATCH`` and ``DELETE`` methods to access to the data. The way that you can access to this data is under the Flapjack system data structure. This structure is the following:
+
+![image](https://pubs.acs.org/na101/home/literatum/publisher/achs/journals/content/asbcd6/2021/asbcd6.2021.10.issue-1/acssynbio.0c00554/20210108/images/large/sb0c00554_0002.jpeg)
+
+As shown every endpoint is interconected with eachother in some sort of way. Using the RESTful API you are able to access to each one of the models in the database, so you can do whatever you want with it.
+
+In this case we have uploaded a file containing the data from an study about characterizing context effects on gene expression levels and dCas9 inverters, these studies can be found in the [flapjack paper](https://doi.org/10.1021/acssynbio.0c00554). 
+
+For each endpoint you will find a series of examples that will introduce you to the different ways that you can use the API. This examples are in the form of shell commands, and the response of them in json format.
+## Study
+> To get the total list of studies:
+
+```shell
+curl --location --request POST 'http://localhost:8000/api/study/' \
+--header 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjM3ODA5OTE3LCJqdGkiOiJmM2Q1MDZiMDBhYTc0MjQ1YWI4ZWVhZWExNmMyNGJiYSIsInVzZXJfaWQiOjJ9.w7zBOCM962a5GJ6zxZXigYNTUFIkNrI0qgxNAHU_Jik'
+```
+>Reponse
+
+```json
+{
+    "count": 2,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": 5,
+            "is_owner": true,
+            "shared_with": [],
+            "name": "cfps variants",
+            "description": "cfps variants for flapjack documentation",
+            "doi": "",
+            "public": false
+        },
+        {
+            "id": 6,
+            "is_owner": true,
+            "shared_with": [],
+            "name": "dcas9 inverters",
+            "description": "dcas9 inverters for flapjack documentation",
+            "doi": "",
+            "public": false
+        }
+    ]
+}
+```
+
+> To get the list of studies filtered by specific parameters:
+
+```shell
+curl --location --request GET 'http://localhost:8000/api/study/?name=cfps variants' \
+--header 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjM3ODA5OTE3LCJqdGkiOiJmM2Q1MDZiMDBhYTc0MjQ1YWI4ZWVhZWExNmMyNGJiYSIsInVzZXJfaWQiOjJ9.w7zBOCM962a5GJ6zxZXigYNTUFIkNrI0qgxNAHU_Jik'
+```
+> Response
+
+```json
+{
+    "count": 1,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": 5,
+            "is_owner": true,
+            "shared_with": [],
+            "name": "cfps variants",
+            "description": "cfps variants for flapjack documentation",
+            "doi": "",
+            "public": false
+        }
+    ]
+}
+```
+
+> To search for an specific study:
+
+```shell
+curl --location --request GET 'http://localhost:8000/api/study/?search=dCas9' \
+--header 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjM3ODA5OTE3LCJqdGkiOiJmM2Q1MDZiMDBhYTc0MjQ1YWI4ZWVhZWExNmMyNGJiYSIsInVzZXJfaWQiOjJ9.w7zBOCM962a5GJ6zxZXigYNTUFIkNrI0qgxNAHU_Jik'
+```
+> Response 
+
+```json
+{
+    "count": 1,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": 6,
+            "is_owner": true,
+            "shared_with": [],
+            "name": "dcas9 inverters",
+            "description": "dcas9 inverters for flapjack documentation",
+            "doi": "",
+            "public": false
+        }
+    ]
+}
+```
+This corresponds to a project, for example a paper or report, that corresponds to a certain question a researcher wants to address.
+
+In general the things that you can do with each REST model is:
+``GET``: Get all the data of the model, get filtered data by a set of parameter and get an specific data by the ID.
+``POST``: Create a new data in the model.
+``PATCH``: Update a data in the model.
+``DELETE``: Delete a data in the model.
+### Query parameters
+
+Key|Description
+---|---
+name| Refers to the name given to the study
+description | The description of the Study
+doi| The doi of the study
+owner | The owner of the study
+public | Boolean that indicates whether the study is public or private
+
+
+
+## Assays 
+> To get the total list of assays:
+
+```shell
+curl --location --request GET 'http://localhost:8000/api/assay/'
+--header 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjM3ODA5OTE3LCJqdGkiOiJmM2Q1MDZiMDBhYTc0MjQ1YWI4ZWVhZWExNmMyNGJiYSIsInVzZXJfaWQiOjJ9.w7zBOCM962a5GJ6zxZXigYNTUFIkNrI0qgxNAHU_Jik'
+```
+
+> Response
+
+```json
+
+{
+    "count": 5,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": 10,
+            "name": "dcas9 inverters 1",
+            "machine": "HTX Synergy",
+            "description": "dcas9 inverters, assay 1",
+            "temperature": 37.0,
+            "study": 6
+        },
+        {
+            "id": 9,
+            "name": "cfps variants",
+            "machine": "HTX Synergy",
+            "description": "cfps variants for flapjack documentation assay 1",
+            "temperature": 24.0,
+            "study": 5
+        },
+        {
+            "id": 11,
+            "name": "dcas9 inverters 2",
+            "machine": "HTX Synergy",
+            "description": "dcas9 inverters assay 2",
+            "temperature": 37.0,
+            "study": 6
+        },
+        {
+            "id": 12,
+            "name": "dcas9 inverters 3",
+            "machine": "HTX Synergy",
+            "description": "dcas9 inverters assay 3",
+            "temperature": 37.0,
+            "study": 6
+        },
+        {
+            "id": 13,
+            "name": "dcas9 inverters 4",
+            "machine": "HTX Synergy",
+            "description": "dcas9 inverters assay 4",
+            "temperature": 37.0,
+            "study": 6
+        }
+    ]
+}
+```
+
+> To get the list of assays filtered by specific parameters:
+
+```shell
+curl --location --request GET 'http://localhost:8000/api/assay/?temperature=37'
+--header 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjM3ODA5OTE3LCJqdGkiOiJmM2Q1MDZiMDBhYTc0MjQ1YWI4ZWVhZWExNmMyNGJiYSIsInVzZXJfaWQiOjJ9.w7zBOCM962a5GJ6zxZXigYNTUFIkNrI0qgxNAHU_Jik'
+```
+
+>Response
+
+```json
+{
+    "count": 4,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": 10,
+            "name": "dcas9 inverters 1",
+            "machine": "HTX Synergy",
+            "description": "dcas9 inverters, assay 1",
+            "temperature": 37.0,
+            "study": 6
+        },
+        {
+            "id": 11,
+            "name": "dcas9 inverters 2",
+            "machine": "HTX Synergy",
+            "description": "dcas9 inverters assay 2",
+            "temperature": 37.0,
+            "study": 6
+        },
+        {
+            "id": 12,
+            "name": "dcas9 inverters 3",
+            "machine": "HTX Synergy",
+            "description": "dcas9 inverters assay 3",
+            "temperature": 37.0,
+            "study": 6
+        },
+        {
+            "id": 13,
+            "name": "dcas9 inverters 4",
+            "machine": "HTX Synergy",
+            "description": "dcas9 inverters assay 4",
+            "temperature": 37.0,
+            "study": 6
+        }
+    ]
+}
+```
+> Search for an specific assay:
+
+```shell
+curl --location --request GET 'http://localhost:8000/api/assay/?search=dcas9 inverters 3'
+--header 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjM3ODA5OTE3LCJqdGkiOiJmM2Q1MDZiMDBhYTc0MjQ1YWI4ZWVhZWExNmMyNGJiYSIsInVzZXJfaWQiOjJ9.w7zBOCM962a5GJ6zxZXigYNTUFIkNrI0qgxNAHU_Jik'
+```
+
+> Response
+
+```json
+{
+    "count": 1,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": 12,
+            "name": "dcas9 inverters 3",
+            "machine": "HTX Synergy",
+            "description": "dcas9 inverters assay 3",
+            "temperature": 37.0,
+            "study": 6
+        }
+    ]
+}
+```
+
+The assays refears to measurement of experiments, including replicates and varying experimental conditions, performed to explore different aspects of the study.
+
+
+### Query Parameters
+
+Key|Description
+---|---
+study | Name of the associated study
+id| ID given to the assay
+Temperature| Temperature of development of the assay
+machine | Machine used for the assay
+study| Number of the assay in an specific study
+
+## Sample
+
+> To get the total list of samples:
+
+```shell
+curl --location --request GET 'localhost:8000/api/sample/' \
+--header 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjM3ODA5OTE3LCJqdGkiOiJmM2Q1MDZiMDBhYTc0MjQ1YWI4ZWVhZWExNmMyNGJiYSIsInVzZXJfaWQiOjJ9.w7zBOCM962a5GJ6zxZXigYNTUFIkNrI0qgxNAHU_Jik'
+```
+
+>Response
+
+```json
+{
+    "count": 480,
+    "next": "http://localhost:8000/api/sample/?limit=100&offset=100",
+    "previous": null,
+    "results": [
+		{
+            "id": 665,
+            "row": 8,
+            "col": 5,
+            "assay": 12,
+            "media": 1,
+            "strain": null,
+            "vector": null,
+            "supplements": [
+                2,
+                11
+            ]
+        },
+        {
+            "id": 578,
+            "row": 1,
+            "col": 2,
+            "assay": 12,
+            "media": 1,
+            "strain": 1,
+            "vector": 13,
+            "supplements": [
+                2,
+                3
+            ]
+        },
+        {
+            "id": 730,
+            "row": 5,
+            "col": 10,
+            "assay": 13,
+            "media": 5,
+            "strain": 1,
+            "vector": 12,
+            "supplements": [
+                2,
+                11
+            ]
+        },
+		...
+	]
+}
+```
+>Due to the large number of samples, we are going to show the firts 3 samples.
+
+> To get the list of samples filtered by specific parameters:
+
+```shell
+curl --location --request GET 'localhost:8000/api/sample/?id=730' \
+--header 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjM3ODA5OTE3LCJqdGkiOiJmM2Q1MDZiMDBhYTc0MjQ1YWI4ZWVhZWExNmMyNGJiYSIsInVzZXJfaWQiOjJ9.w7zBOCM962a5GJ6zxZXigYNTUFIkNrI0qgxNAHU_Jik'
+```
+
+>Response
+
+```json
+{
+    "count": 1,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": 730,
+            "row": 5,
+            "col": 10,
+            "assay": 13,
+            "media": 5,
+            "strain": 1,
+            "vector": 12,
+            "supplements": [
+                2,
+                11
+            ]
+        }
+    ]
+}
+```
+> Search for an specific sample:
+
+```shell
+curl --location --request GET 'localhost:8000/api/sample/?search=TM' \
+--header 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjM3ODA5OTE3LCJqdGkiOiJmM2Q1MDZiMDBhYTc0MjQ1YWI4ZWVhZWExNmMyNGJiYSIsInVzZXJfaWQiOjJ9.w7zBOCM962a5GJ6zxZXigYNTUFIkNrI0qgxNAHU_Jik'
+```
+
+Sample orresponds to the basic unit that is subject to measurement, for example a colony or a well in a microplate.
+
+### Query Parameters
+
+Key| Description
+---|---
+assay | Assays used in the sample
+media | Media used in the sample
+strain | Strain utilised in the sample
+vector | Vector that was used in the sample
+supplements | Supplement utilised in the sample
+row | Position in the assay layout (row)
+col | Position in the assay layout (column)
+
+## Vector
+
+The vector describes the synthetic DNAs encoding a genetic circuit, including links to part composition and sequence via the corresponding SynBioHub URIs.
+
+### Query Parameters
+
+Key|Description
+---|---
+owner | Name of the owner of the data of the query
+name | Name of the vector 
+dnas | DNAs conteined in the vector 
+
+## DNA
+> To get the total list of dna:
+
+```shell
+curl --location --request GET 'http://localhost:8000/api/dna/' \
+--header 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjM3ODA5OTE3LCJqdGkiOiJmM2Q1MDZiMDBhYTc0MjQ1YWI4ZWVhZWExNmMyNGJiYSIsInVzZXJfaWQiOjJ9.w7zBOCM962a5GJ6zxZXigYNTUFIkNrI0qgxNAHU_Jik'
+```
+
+>Response
+
+```json
+{
+    "count": 11,
+    "next": null,
+    "previous": null,
+    "results": [
+		{
+            "id": 19,
+            "name": "tma 5",
+            "sboluri": ""
+        },
+        {
+            "id": 15,
+            "name": "L1-30A ft",
+            "sboluri": ""
+        },
+        {
+            "id": 16,
+            "name": "Ccat 1",
+            "sboluri": ""
+        },
+		...
+	]
+}
+```
+>Due to the large amount of DNA, we are going to show the first 3 dna.
+
+> To get the list of dna filtered by specific parameters:
+
+```shell
+curl --location --request GET 'http://localhost:8000/api/dna/?id=12' \
+--header 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjM3ODA5OTE3LCJqdGkiOiJmM2Q1MDZiMDBhYTc0MjQ1YWI4ZWVhZWExNmMyNGJiYSIsInVzZXJfaWQiOjJ9.w7zBOCM962a5GJ6zxZXigYNTUFIkNrI0qgxNAHU_Jik'
+```
+
+>Response
+```json
+{
+    "count": 1,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": 12,
+            "name": "L1-23A ft",
+            "sboluri": ""
+        }
+    ]
+}
+```
+
+> Search for an specific dna entry:
+
+```shell
+curl --location --request GET 'http://localhost:8000/api/dna/?search=tma 5' \
+--header 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjM3ODA5OTE3LCJqdGkiOiJmM2Q1MDZiMDBhYTc0MjQ1YWI4ZWVhZWExNmMyNGJiYSIsInVzZXJfaWQiOjJ9.w7zBOCM962a5GJ6zxZXigYNTUFIkNrI0qgxNAHU_Jik'
+```
+
+>Response
+
+```json
+{
+    "count": 1,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": 19,
+            "name": "tma 5",
+            "sboluri": ""
+        }
+    ]
+}
+```
+
+DNA corresponds to the DNA parts that, later on, will compose a vector that can be used in the assay.
+
+### Query Parameters
+
+Key|Description
+---|---
+owner| Owner of the DNA 
+name| Name of the DNA 
+sboluri| SBOLURI of the DNA 
+
+## Media
+
+The media corresponds to the composition of the substrate that drives the genetic circuit, media in the case of live cell assays, or extract for cell-free experiments.
+
+
+### Query Parameters
+
+Key | Description
+--- | ---
+owner | owner of the media
+name | Name of the media
+description | Description of the media
+
+
+## Strain
+
+The strains refers to the chassis organism, if any, hosting the genetic circuit.
+
+### Query Parameters
+
+Key |description
+---|---
+owner | Name of the owner of the data of the strain
+name | Name of the strain
+description | Description of the strain
+
+## Supplement
+
+Supplemente is any supplementary chemicals that interact with components of the genetic circuit. It's compose of a serie of Chemical data objects.
+
+### Query Parameters
+Key | Description
+---| ---
+owner | Name of the owner of the data 
+name | Name of the certiain suplement
+chemical | Chemicals used in the suplement
+concentration | Concentration of the chemicals (Is the concentration of the chemicals or suplement???)
+
+## Chemical
+
+This registry refers to the chemical(s) that compose the supplement used during the experiments used to obtain data.
+
+### Query Parameters
+Key|Description
+---|---
+owner | Name of the owner of the chemical data
+name| Name of the chemical
+description | Description of the chemical
+pubchemid | Pubchem id of the chemical
+
+
+## Measurement
+
+The messurement is the value of the raw measurement recorded for a particular sample during an assay at a particular time.
+
+### Query Parameters
+
+Key| Description
+---|---
+sample | Sample that is associated with this measurement
+signal | Signal associated with this measurement
+value | Value of the measurement
+time | Time measurement
+## Signal
+
+Signal is the subject of measurements, for example a fluorescence channel with given filter bandwidths.
+
+### Query Parameters
+
+Key | Description
+--- | ---
+owner | Owner of the signal data
+name | Name of the signal data
+description | Description of the signal data
+color | Color of the signal utilized
+
+
+# websocket API
+## Introduction
+
+
+A websockat API is an advance technology that allows the communicate interactivily to the server. This is a very powerful tool because enables a longer conection to the server, in a full-duplex way. An important insight in this matter is that the websocket API enables an persistant conection to the server.
+
+These structure of API is used in Flapjack to communicate with the server with a more stable communication than that given by a REST API. We use this because the following endpoints are based on calculations that the require an stable conection with the client in order to bring the best service.
+## Upload_measurements
+
+## Measurements
+
+The meassurements endpoint *(note that it's different from the measurement endpoint)* is used to get the measurements of an specific data uploaded to the Flapjack server. This endpoint retrive a large quantity of data, because is used to get more than one mearsurement from the server.
+
+This endpoint gives as a result a .json file that contains the meassurements that were asked to the server.
+
+
+## Analysis
+>To connect to the websocket
+
+```python
+import websockets
+import json
+
+params = kwargs
+
+uri = 'ws://localhost:8000/ws/analysis/analysis?token='+access_token
+payload = {
+	"type" : "analysis",
+	"parameters" : params
+}
+
+with websockets.connect(uri) as websocket:
+	websocket.send(json.dumps(payload))
+	response_json = webscket.recv()
+	response data = json.loads(response_json)
+```
+This endpoint is in charge of developing most of the calculations and the result is a .json file that can be interpreted as a pandas data frame. There are many analysis available in Flapjack at the moment, allowing you to analyze your data using many methods. This endpoint gives a .json file that can be interpreted as a pandas data frame.
+
+The `params` variable refers to the different kinds of analysis and data provided to the analysis websocket.
+
+**Types of analysis**
+### Velocity
+
+
+
+### Query Parameters
+
+Key | Description
+--- | --- 
+df | DataFrame containing the data to analyze. 
+pre_smoothing |  Savitsky-Golay filter parameter. Is the initial smoothing parameter.
+post_smoothing | Savitsky-Golay filter parameter. Is the final smoothing parameter.
+
+### Expression Rate (Indirect)
+
+The expression rate analysis refers to analyze the expression of the genes in a certain study. In this case, the analysis is done using an indirect method.
+
+### Query Parameters
+
+Key | Description
+--- | ---
+df | DataFrame containing the data to analyze. 
+density_df | DataFrame with density measurements.
+pre_smoothing | Savitsky-Golay filter parameter. Is the initial smoothing parameter.
+post_smoothing | Savitsky-Golay filter parameter. Is the final smoothing parameter.
+
+### Expression Rate (Direct)
+
+This analysis of the expression rate is based on a direct method.
+
+### Query Parameters
+
+Key | Description
+---|---
+df | DataFrame containing the data to analyze. 
+density_df | DataFrame with density (biomass) measurements.
+degr | Degradation rate of the reporter protein. 
+eps_L | Insignificant value for model fitting. 
+
+### Expression Rate (Inverse)
+
+This expression rate analysis is based on a inverse method.
+
+### Query Parameters
+
+Key | Description
+--- | ---
+df | DataFrame containing the data to analyze. 
+density_df | DataFrame with density (biomass) measurements.
+degr | Degradation rate of the reporter protein. 
+eps | Tikhoniv regularization parameter.
+n_gaussians | Number of gaussians in basis. 
+
+### Mean Expression
+
+This analysis returns a data frame containing the mean values for each sample.
+
+### Query Parameters
+Key | Description
+--- | ---
+df | DataFrame containing the data to analyze. 
+
+### Max expression 
+
+This analysis returns a data frame containing the max values for each sample.
+
+### Query Parameters
+
+Key| Description
+---|---
+df | DataFrame containing the data to analyze.
+
+### Mean Velocity
+
+This analysis returns a data frame containing the mean velocity for each sample.
+
+### Query Parameters
+Key | Description
+---|---
+df | DataFrame containing the data to analyze.
+
+### Max Velocity
+
+This analysis returns a data frame containing the max velocity for each sample.
+
+### Query Parameters
+
+Key | Description
+---|---
+df | DataFrame containing the data to analyze.
+
+### Induction Curve
+**Is this correct?**
+### Query Parameters
+Key | Description
+---|---
+df | DataFrame containing the data to analyze.
+
+### Kymograph
+**This one is strange because it calls the past analysis.**
+### Query Parameters
+Key | Description
+---|---
+df | DataFrame containing the data to analyze.
+
+### Heatmap 
+
+### Query Parameters
+
+Key | Description
+---|---
+df | DataFrame containing the data to analyze.
+
+### Ratiometric Alpha
+
+### Query Parameters
+
+Key | Description
+---|---
+df | DataFrame containing the data to analyze.
+bounds | Tuple of list of min and max values for  Gompertz model parameters.
+density_df | DataFrame containing biomass measurements.
+ndf | Number of doubling times to extend exponential phase.
+
+### Ratiometric Rho
+
+### Query Parameters
+
+Key | Description
+---|---
+df | DataFrame containing the data to analyze.
+bounds | Tuple of list of min and max values for  Gompertz model parameters.
+density_df | DataFrame containing biomass measurements.
+ref_df | DataFrame containing reference measurements.
+ndf | Number of doubling times to extend exponential phase.***
+
+## Plot
+
+This final endpoit is used to visualize the data that was retrive from the server after doing the analysis. The way that the endpoint works is that the analizis .json file given by the analizis endpoint is modified in order to be interpreted as a data frame interpretable for plotting tools, such as matplotlib.
+### Normalize
+
+In order to normalize the data and plot it we have provided many different options.
+
+### Query Parameters
+
+Key | Description
+---|---
+Temporal Mean | Normalize the data by the temporal mean of the data. 
+Mean/std | Normalize the data by the mean of the data divided by the standar deviation.
+Min/Max | Normalize the data by the cocient of the minimum and maximum values.
+None | The data is not normalized.
+
+### Subplots
+
+When making a plot you can select different subplots according to what best suits your needs. You can plot the different registry parameters.
+
+### Query Parameters
+
+Key | Description
+--- | ---
+Signal | The subplots are plotted from signal data.
+Study | The subplots are plotted from study data.
+Assay | The subplots are plotted from assay data.
+Vector | The subplots are plotted from vector data.
+Media | The subplots are plotted from media data.
+Strain | The subplots are plotted from strain data.
+Supplemente | The subplots are plotted from supplement data.
+
+### Lines/Markers
+
+This refers to the curves you want to be shown in each of the plots. The query parameters are the same as the previously mentioned.
+
+### Plot
+
+It corresponds to the detail you want to have in each of the curves.
+
+### Query Parameters
+
+Key | Description
+--- | ---
+Mean | The datail is in the mean of the curves.
+Mean +/- std | The detail is in the Mean, max, minimum, and standar deviation of the data.
+All data points | You plot all the points, not givin more detail to anyone.
