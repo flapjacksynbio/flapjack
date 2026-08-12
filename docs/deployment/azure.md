@@ -93,7 +93,7 @@ development defaults.
 ## 5. Build and start
 
 ```sh
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose --env-file flapjack_api/.env.prod -f docker-compose.prod.yml up -d --build
 ```
 
 The first build takes a while: the API image compiles a few packages from source. Later
@@ -108,9 +108,9 @@ with `docker compose -f docker-compose.prod.yml logs -f frontend` and wait for t
 ## 6. Migrate and create an administrator
 
 ```sh
-docker compose -f docker-compose.prod.yml exec api python manage.py migrate
-docker compose -f docker-compose.prod.yml exec api python manage.py collectstatic --noinput
-docker compose -f docker-compose.prod.yml exec api python manage.py createsuperuser
+docker compose --env-file flapjack_api/.env.prod -f docker-compose.prod.yml exec api python manage.py migrate
+docker compose --env-file flapjack_api/.env.prod -f docker-compose.prod.yml exec api python manage.py collectstatic --noinput
+docker compose --env-file flapjack_api/.env.prod -f docker-compose.prod.yml exec api python manage.py createsuperuser
 ```
 
 > Why this step exists in production but not locally.
@@ -201,9 +201,9 @@ not available yet.
 ```sh
 ./scripts/backup_db.sh                     # always first
 git pull
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml exec api python manage.py migrate
-docker compose -f docker-compose.prod.yml exec api python manage.py collectstatic --noinput
+docker compose --env-file flapjack_api/.env.prod -f docker-compose.prod.yml up -d --build
+docker compose --env-file flapjack_api/.env.prod -f docker-compose.prod.yml exec api python manage.py migrate
+docker compose --env-file flapjack_api/.env.prod -f docker-compose.prod.yml exec api python manage.py collectstatic --noinput
 ```
 
 Copy the file written to `backups/` off the VM. A backup on the same disk does not
@@ -326,8 +326,8 @@ psql "host=<server>.postgres.database.azure.com port=5432 dbname=<db> \
 5. Bring up the managed stack and run migrations as the same explicit step:
 
 ```sh
-docker compose -f docker-compose.azure-managed.yml up -d --build
-docker compose -f docker-compose.azure-managed.yml exec api python manage.py migrate
+docker compose --env-file flapjack_api/.env.prod -f docker-compose.azure-managed.yml up -d --build
+docker compose --env-file flapjack_api/.env.prod -f docker-compose.azure-managed.yml exec api python manage.py migrate
 ```
 
 Verify before trusting it: sign in, open Browse, and confirm a known study is
