@@ -36,6 +36,13 @@ ALLOWED_HOSTS = split_env('DJANGO_ALLOWED_HOSTS')
 # Never allow every origin in production; list the frontend origins explicitly.
 CORS_ORIGIN_ALLOW_ALL = False
 CORS_ALLOWED_ORIGINS = split_env('DJANGO_CORS_ALLOWED_ORIGINS')
+CORS_ORIGIN_WHITELIST = [
+    x.strip()
+    for x in os.environ.get(
+        "DJANGO_CORS_ALLOWED_ORIGINS", ""
+    ).split(",")
+    if x.strip()
+]
 
 DATABASES = {
     'default': {
