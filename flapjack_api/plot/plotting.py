@@ -10,6 +10,11 @@ import pandas as pd
 
 # Properties to use for each analysis/plot type
 plot_properties = { 
+    'Background Correct': dict(
+        axis_labels=('Time (h)', 'Background-corrected measurement (AU)'),
+        plot_type='timeseries',
+        data_column='Measurement'
+        ),
     'Velocity': dict(
         axis_labels=('Time (h)', 'Velocity (AU/h)'),
         plot_type='timeseries',
@@ -443,4 +448,3 @@ def make_timeseries_traces(
                                 showlegend=show_legend_group)
         fig.add_trace(scatter, row=row, col=col)
     return(fig)
-

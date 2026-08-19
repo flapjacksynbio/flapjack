@@ -26,13 +26,19 @@ def gompertz_growth_rate(t, y0, ymax, um, l):
 # Normalization functions
 def normalize_min_max(data, column):    
     val = data[column].values
-    nval = (val-np.nanmin(val)) / (np.nanmax(val) - np.nanmin(val))
+    scale = np.nanmax(val) - np.nanmin(val)
+    if not np.isfinite(scale) or scale == 0:
+        raise ValueError(f'Cannot Min/Max normalize constant or non-finite {column} values.')
+    nval = (val-np.nanmin(val)) / scale
     data[column] = nval
     return data
 
 def normalize_mean_std(data, column):    
     val = data[column].values
-    nval = (val-np.nanmean(val)) / np.nanstd(val)
+    scale = np.nanstd(val)
+    if not np.isfinite(scale) or scale == 0:
+        raise ValueError(f'Cannot Mean/std normalize constant or non-finite {column} values.')
+    nval = (val-np.nanmean(val)) / scale
     data[column] = nval
     return data
 
@@ -65,4 +71,4 @@ def normalize_data(df, norm_type, column):
             result = result.append(rows)
         return result
     else:
-        return df
+        raise ValueError(f'Unknown normalization method {norm_type!r}.')

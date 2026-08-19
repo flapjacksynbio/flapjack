@@ -1,11 +1,14 @@
 # Built in imports.
 import json
 import asyncio
+import logging
+import uuid
 # Third Party imports.
 from channels.db import database_sync_to_async
 from channels.exceptions import DenyConnection
 from channels.generic.websocket import AsyncWebsocketConsumer
 from analysis.analysis import Analysis 
+from analysis.contracts import AnalysisError, normalize_analysis_params, validate_dataframe
 from analysis.util import *
 from registry.util import get_samples, get_measurements
 from plotly.subplots import make_subplots
@@ -13,6 +16,8 @@ import plotly
 import pandas as pd
 import time
 import math
+
+logger = logging.getLogger(__name__)
 
 @database_sync_to_async
 def fetch_measurements(params, signals, user):
@@ -38,9 +43,28 @@ class AnalysisConsumer(AsyncWebsocketConsumer):
         )
         
     async def receive(self, text_data):
-        data = json.loads(text_data)
-        if data['type'] == 'analysis':
-            await self.generate_data({'params': data['parameters']})
+        error_id = str(uuid.uuid4())
+        try:
+            data = json.loads(text_data)
+            if data.get('type') != 'analysis':
+                raise AnalysisError(
+                    'INVALID_REQUEST_TYPE', 'Expected an analysis request.', field='type'
+                )
+            await self.generate_data({'params': data.get('parameters', {})})
+        except AnalysisError as exc:
+            payload = dict(exc.data, error_id=error_id)
+            await self.send(text_data=json.dumps({'type': 'analysis_error', 'data': payload}))
+        except Exception:
+            logger.exception('Unexpected analysis request failure error_id=%s request=%r', error_id, text_data)
+            await self.send(text_data=json.dumps({
+                'type': 'analysis_error',
+                'data': {
+                    'code': 'UNEXPECTED_SERVER_ERROR',
+                    'message': 'The server could not complete this request. Please report the error identifier.',
+                    'stage': 'server',
+                    'error_id': error_id,
+                },
+            }))
 
     async def disconnect(self, message):
         await self.channel_layer.group_discard(
@@ -50,9 +74,10 @@ class AnalysisConsumer(AsyncWebsocketConsumer):
 
     async def generate_data(self, event):
         params = event['params']
-        analysis_params = params['analysis']
+        analysis_params = normalize_analysis_params(params.get('analysis'), params.get('signal'))
         signals = params.get('signal')
         df = await fetch_measurements(params, signals, self.user)
+        validate_dataframe(df, analysis_params['type'])
         if analysis_params:
             analysis = Analysis(analysis_params, signals)
             await self.run_analysis(df, analysis)
@@ -65,15 +90,28 @@ class AnalysisConsumer(AsyncWebsocketConsumer):
         grouped = df.groupby('Sample')
         n_samples = len(grouped)
         progress = 0
+        valid_results = 0
+        all_warnings = []
         for id,g in grouped:
             result_df = await analyze_sample(analysis, g)
             #result_dfs.append(result_df)
             progress += 1
+            warnings = analysis.pop_warnings()
+            all_warnings.extend(warnings)
+            if result_df is not None and len(result_df):
+                valid_results += 1
             await self.send(text_data=json.dumps({
                 'type': 'progress_update',
                 'progress': int(100 * progress / n_samples),
-                'data': result_df.to_json()
+                'data': result_df.to_json(),
+                'warnings': warnings,
             }))
             await asyncio.sleep(0)
+        if valid_results == 0:
+            raise AnalysisError(
+                'NO_VALID_RESULTS',
+                'No selected samples contained enough valid data to produce this analysis.',
+                stage='analysis', analysis=analysis.analysis_type,
+                warnings=all_warnings,
+            )
         #return df
-

@@ -424,8 +424,8 @@ export const functionAnalysisOptions = {
       name: 'function',
       label: 'Function',
       options: [
-        { label: 'Mean expression', value: 'Mean expression' },
-        { label: 'Max expression', value: 'Max expression' },
+        { label: 'Mean expression', value: 'Mean Expression' },
+        { label: 'Max expression', value: 'Max Expression' },
         { label: 'Rho', value: 'Rho' },
         { label: 'Alpha', value: 'Alpha' },
       ],
@@ -452,8 +452,8 @@ export const functionAnalysisOptions = {
       name: 'function',
       label: 'Function',
       options: [
-        { label: 'Mean expression', value: 'Mean expression' },
-        { label: 'Max expression', value: 'Max expression' },
+        { label: 'Mean expression', value: 'Mean Expression' },
+        { label: 'Max expression', value: 'Max Expression' },
         { label: 'Rho', value: 'Rho' },
         { label: 'Alpha', value: 'Alpha' },
       ],
@@ -474,8 +474,9 @@ export const functionAnalysisOptions = {
       name: 'function',
       label: 'Function',
       options: [
-        { label: 'Expression rate (direct)', value: 'Expression rate (direct)' },
-        { label: 'Expression rate (indirect)', value: 'Expression rate (indirect)' },
+        { label: 'Expression rate (direct)', value: 'Expression Rate (direct)' },
+        { label: 'Expression rate (indirect)', value: 'Expression Rate (indirect)' },
+        { label: 'Expression rate (inverse)', value: 'Expression Rate (inverse)' },
       ],
       requiresForm: true,
       isFormItem: true,
