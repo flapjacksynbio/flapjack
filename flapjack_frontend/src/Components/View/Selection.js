@@ -7,6 +7,7 @@ import PlotOptions from './PlotOptions'
 import AnalysisSelection from './AnalysisSelection'
 import api from '../../api'
 import _ from 'lodash'
+import { validateAnalysisSelection } from './analysisProtocol'
 
 /** Renders the query form for plot creation */
 const Selection = ({ onSubmit }) => {
@@ -285,6 +286,15 @@ const Selection = ({ onSubmit }) => {
       // Plotting anyway sent a request with the analysis silently dropped, so
       // the warning said the input was wrong while the chart appeared without it.
       message.warning('Please fill the fields in the analysis form.')
+      return
+    }
+
+    const selectionError = validateAnalysisSelection(analysisValues)
+    if (selectionError) {
+      analysisForm.setFields([
+        { name: selectionError.field, errors: [selectionError.message] },
+      ])
+      message.warning(selectionError.message)
       return
     }
 

@@ -7,6 +7,7 @@ import { addPlotToTab } from '../../redux/actions/viewTabs'
 import { connect } from 'react-redux'
 import apiWebSocket from '../../api/apiWebSocket'
 import './View.scss'
+import { errorDescription, errorTitle, groupWarnings } from './analysisFeedback'
 
 /**
  * Renderer for new View tab
@@ -17,7 +18,7 @@ import './View.scss'
  * @param {function(plotId, plotData)} props.addPlot Function for creating a new plot and storing it in Redux store
  */
 const DataView = ({ title, onRename, plotData, plotId, addPlot }) => {
-  const { message } = App.useApp()
+  const { notification } = App.useApp()
   const [loadingData, setLoadingData] = React.useState(null)
 
   const onPlot = (values) => {
@@ -26,6 +27,42 @@ const DataView = ({ title, onRename, plotData, plotId, addPlot }) => {
 
   // Request plot data to backend via websocjets
   const createWebsocket = (values) => {
+    let structuredErrorHandled = false
+    let connectionErrorHandled = false
+    const showWarnings = (warnings = [], hasValidResults = true) => {
+      if (!warnings.length) return
+      const grouped = groupWarnings(warnings)
+      notification.warning({
+        message: `${warnings.length} analysis warning${warnings.length === 1 ? '' : 's'}`,
+        duration: 0,
+        description: (
+          <div>
+            <p>
+              {hasValidResults
+                ? 'Valid samples were plotted. Some samples were skipped.'
+                : 'These sample-level problems prevented a valid result.'}
+            </p>
+            <details>
+              <summary>Show sample details</summary>
+              <ul>
+                {grouped.map((warning) => (
+                  <li
+                    key={`${warning.code}-${warning.stage}-${warning.samples.join('-')}`}
+                  >
+                    {warning.message}
+                    {warning.samples.length > 0 &&
+                      ` (sample${
+                        warning.samples.length === 1 ? '' : 's'
+                      }: ${warning.samples.join(', ')})`}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </div>
+        ),
+      })
+    }
+
     apiWebSocket.connect('plot/plot', {
       onConnect(event, socket) {
         // Initialize progress bar
@@ -50,11 +87,36 @@ const DataView = ({ title, onRename, plotData, plotId, addPlot }) => {
               addPlot(plotId, {})
             }
           }
+          showWarnings(data.warnings)
           socket.close()
+        },
+        analysis_error: ({ data }, event, socket) => {
+          structuredErrorHandled = true
+          setLoadingData(null)
+          if (process.env.NODE_ENV === 'development') {
+            // Full structured context is intentionally available for GUI tests.
+            console.error('Flapjack analysis error', data)
+          }
+          notification.error({
+            message: errorTitle(data),
+            description: (
+              <span style={{ whiteSpace: 'pre-line' }}>{errorDescription(data)}</span>
+            ),
+            duration: 0,
+          })
+          showWarnings(data.warnings, false)
+          socket.close(1000)
         },
       },
       onError(event, socket) {
-        message.error('There was an error processing the data. Please try again')
+        if (structuredErrorHandled || connectionErrorHandled) return
+        connectionErrorHandled = true
+        notification.error({
+          message: 'Connection failed',
+          description:
+            'The analysis connection was interrupted. Check your connection and try again.',
+          duration: 0,
+        })
         setLoadingData(null)
         socket.close()
       },

@@ -6,6 +6,7 @@ from registry.models import *
 from registry.util import *
 from analysis.util import *
 from . import inverse
+from .contracts import normalize_analysis_params, warning
 from scipy.interpolate import interp1d, UnivariateSpline
 from scipy.signal import medfilt, savgol_filter
 # Only the lowess smoother, not statsmodels.api: the full API imports
@@ -55,8 +56,9 @@ remove_background = {
 # Main analysis class
 class Analysis:
     def __init__(self, params, signals):
-        self.set_params(params)
         self.signals = signals
+        self.warnings = []
+        self.set_params(normalize_analysis_params(params, signals))
         # Functions to call for particular analysis types
         self.analysis_funcs = {
             'Velocity': self.velocity,
@@ -85,8 +87,10 @@ class Analysis:
         self.n_doubling_times = float(params.get('ndt', 2))
         self.remove_data = bool(params.get('remove_data', False))
         self.smoothing_type = params.get('smoothing_type', 'savgol')
-        self.smoothing_param1 = int(params.get('pre_smoothing', 21))
-        self.smoothing_param2 = int(params.get('post_smoothing', 21))
+        smoothing_default = 0.2 if self.smoothing_type == 'lowess' else 21
+        smoothing_cast = float if self.smoothing_type == 'lowess' else int
+        self.smoothing_param1 = smoothing_cast(params.get('pre_smoothing', smoothing_default))
+        self.smoothing_param2 = smoothing_cast(params.get('post_smoothing', smoothing_default))
         self.degr = float(params.get('degr', 0.))
         self.eps_L = float(params.get('eps_L', 1e-7))
         self.n_gaussians = int(params.get('n_gaussians', 20))
@@ -97,10 +101,40 @@ class Analysis:
         self.bounds = [[0,0,0,0], [1,1,1,24]]
         self.function = params.get('function')
 
+    def add_warning(self, sample, stage, code, message, **context):
+        self.warnings.append(warning(
+            sample, self.analysis_type, stage, code, message,
+            function=self.function, **context
+        ))
+
+    def pop_warnings(self):
+        current, self.warnings = self.warnings, []
+        return current
+
+    def valid_series(self, data, sample, stage, minimum=2):
+        """Return finite, time-sorted rows with unique time points or None."""
+        clean = data.replace([np.inf, -np.inf], np.nan).dropna(
+            subset=['Time', 'Measurement']
+        ).sort_values('Time').drop_duplicates('Time')
+        if len(clean) < minimum:
+            self.add_warning(
+                sample, stage, 'INSUFFICIENT_DATA',
+                f'Sample {sample} has {len(clean)} finite unique points; at least {minimum} are required.'
+            )
+            return None
+        return clean
+
     def analyze_data(self, df):     
         # Is it necessary to remove background for this analysis?
         if remove_background[self.analysis_type]:
+            samples = list(df['Sample'].unique()) if 'Sample' in df else []
             df = self.bg_correct(df)
+            if len(df) == 0:
+                for sample in samples:
+                    self.add_warning(
+                        sample, 'background_correction', 'BACKGROUND_CORRECTION_REMOVED_DATA',
+                        f'Background correction removed all usable measurements for sample {sample}.'
+                    )
         # Apply analysis to dataframe
         analysis_func = self.analysis_funcs[self.analysis_type]
         df = analysis_func(df)
@@ -228,18 +262,10 @@ class Analysis:
         pre_smoothing = Savitsky-Golay filter parameter (window size)
         post_smoothing = Savitsky-Golay filter parameter (window size)
         '''
-        print(self.smoothing_param1, self.smoothing_param2, flush=True)
-        
         result = pd.DataFrame()
         rows = []
-
-        # None means "no smoothing possible with that width", which is how a
-        # zero or even parameter now degrades instead of raising inside scipy.
-        _w1 = savgol_window(self.smoothing_param1)
-        _w2 = savgol_window(self.smoothing_param2)
-
-        if self.smoothing_type=='lowess':
-            lowess = _lowess
+        w1 = savgol_window(self.smoothing_param1)
+        w2 = savgol_window(self.smoothing_param2)
 
         grouped_sample = df.groupby('Sample')
         n_samples = len(grouped_sample)
@@ -249,44 +275,33 @@ class Analysis:
             print('Computing velocity of sample %d of %d'%(si, n_samples), flush=True)
             si += 1
             for meas_name, data in samp_data.groupby('Signal_id'):
-                data = data.sort_values('Time')
+                data = self.valid_series(data, samp_id, 'velocity', minimum=2)
+                if data is None:
+                    continue
                 time = data['Time'].values
                 val = data['Measurement'].values
-                
-                if self.smoothing_type=='savgol':
-                    min_data_pts = max(self.smoothing_param1, self.smoothing_param2)
-                else:
-                    min_data_pts = 2
-                if len(val)>min_data_pts:
-                    # Interpolation
-                    ival = interp1d(time, val)
-                    
-                    # Savitzky-Golay filter
-                    if self.smoothing_param1>0:
-                        if self.smoothing_type=='savgol' and _w1 is not None:
-                            sval = savgol_filter(val, _w1, 2, mode='interp')
-                        elif self.smoothing_type=='lowess':
-                            z = lowess(val, time, frac=self.smoothing_param1)
-                            sval = z[:,1]
-
-                    # Interpolation
-                    sval = interp1d(time, sval)
-
-                    # Compute expression rate for time series
-                    velocity = np.gradient(ival(time), time) if _w1 is None else savgol_filter(
-                        ival(time), _w1, 2, deriv=1, mode='interp')
-    
-                    # Final Savitzky-Golay filtering of expression rate profile
-                    if self.smoothing_param2>0:
-                        if self.smoothing_type=='savgol' and _w2 is not None:
-                            velocity = savgol_filter(velocity, _w2, 2, mode='interp')
-                        elif self.smoothing_type=='lowess':
-                            z = lowess(velocity, time, frac=self.smoothing_param2)
-                            velocity = z[:,1]
-                            
-                    # Put result in dataframe
-                    data = data.assign(Velocity=velocity)
-                    rows.append(data)
+                if self.smoothing_type == 'savgol' and any(
+                    window and window > len(val) for window in (w1, w2)
+                ):
+                    required = max(window or 0 for window in (w1, w2))
+                    self.add_warning(
+                        samp_id, 'smoothing', 'INSUFFICIENT_DATA',
+                        f'Sample {samp_id} has {len(val)} points; smoothing requires at least {required}.'
+                    )
+                    continue
+                # Keep the legacy numerical path: pre_smoothing is the
+                # derivative window rather than a separate smoothing pass.
+                velocity = (
+                    savgol_filter(val, w1, 2, deriv=1, mode='interp')
+                    if self.smoothing_type == 'savgol' and w1
+                    else np.gradient(val, time)
+                )
+                if self.smoothing_param2 > 0:
+                    if self.smoothing_type == 'savgol' and w2:
+                        velocity = savgol_filter(velocity, w2, 2, mode='interp')
+                    elif self.smoothing_type == 'lowess':
+                        velocity = _lowess(velocity, time, frac=self.smoothing_param2)[:, 1]
+                rows.append(data.assign(Velocity=velocity))
         if len(rows)>0:
             result = result.append(rows)
         else:
@@ -325,11 +340,15 @@ class Analysis:
             print('Computing indirect expression rate of sample %d of %d'%(si, n_samples), flush=True)
             si += 1
             for meas_name, data in samp_data.groupby('Signal_id'):
-                data = data.sort_values('Time')
+                data = self.valid_series(data, samp_id, 'indirect_input', minimum=2)
+                if data is None:
+                    continue
                 time = data['Time'].values
                 val = data['Measurement'].values
                 density = density_df[density_df['Sample']==samp_id]
-                density = density.sort_values('Time')
+                density = self.valid_series(density, samp_id, 'biomass_input', minimum=2)
+                if density is None:
+                    continue
                 density_val = density['Measurement'].values
                 density_time = density['Time'].values
                 
@@ -341,7 +360,8 @@ class Analysis:
                 if len(val)>min_data_pts and len(density_val)>min_data_pts:
                     # Interpolation
                     ival = interp1d(time, val)
-                    idensity = interp1d(density_time, density_val)
+                    sval = val
+                    sdensity = density_val
 
                     # Savitzky-Golay filter
                     if self.smoothing_param1>0:
@@ -361,12 +381,33 @@ class Analysis:
                     # Compute time range
                     tmin = max(time.min(), density_time.min())
                     tmax = min(time.max(), density_time.max())
+                    if tmin >= tmax:
+                        self.add_warning(
+                            samp_id, 'time_alignment', 'NON_OVERLAPPING_TIME_RANGE',
+                            f'Sample {samp_id} fluorescence and biomass time ranges do not overlap.'
+                        )
+                        continue
                     time = time[ (time>=tmin) & (time<tmax)]
 
                     # Reslice data to new time range
                     data = data[ (data.Time>=tmin) & (data.Time<tmax) ]
 
                     # Compute expression rate for time series
+                    if len(time) < 2:
+                        self.add_warning(
+                            samp_id, 'time_alignment', 'INSUFFICIENT_DATA',
+                            f'Sample {samp_id} has fewer than 2 points in the shared time range.'
+                        )
+                        continue
+                    if self.smoothing_type == 'savgol' and any(
+                        window and window > len(time) for window in (_w1, _w2)
+                    ):
+                        required = max(window or 0 for window in (_w1, _w2))
+                        self.add_warning(
+                            samp_id, 'smoothing', 'INSUFFICIENT_DATA',
+                            f'Sample {samp_id} has {len(time)} shared points; smoothing requires {required}.'
+                        )
+                        continue
                     dt = np.mean(np.diff(time))
                     dvaldt = (np.gradient(ival(time), time) if _w1 is None else savgol_filter(
                         ival(time), _w1, 2, deriv=1, mode='interp')) / dt
@@ -386,9 +427,21 @@ class Analysis:
                         elif self.smoothing_type=='lowess':
                             z = lowess(ksynth, time, frac=self.smoothing_param2)
                             ksynth = z[:,1]
+                    if not np.all(np.isfinite(ksynth)):
+                        self.add_warning(
+                            samp_id, 'indirect_fit', 'NON_FINITE_RESULT',
+                            f'Indirect expression rate produced non-finite values for sample {samp_id}; check biomass correction.',
+                            signal=meas_name,
+                        )
+                        continue
                     # Put result in dataframe
                     data = data.assign(Rate=ksynth)
                     rows.append(data)
+                else:
+                    self.add_warning(
+                        samp_id, 'smoothing', 'INSUFFICIENT_DATA',
+                        f'Sample {samp_id} does not have enough fluorescence and biomass points for smoothing.'
+                    )
         if len(rows)>0:
             result = result.append(rows)
         else:
@@ -423,11 +476,15 @@ class Analysis:
             print('Computing direct expression rate of sample %d of %d'%(si, n_samples), flush=True)
             si += 1
             for meas_name, data in samp_data.groupby('Signal_id'):
-                data = data.sort_values('Time')
+                data = self.valid_series(data, samp_id, 'direct_input', minimum=2)
+                if data is None:
+                    continue
                 time = data['Time']
                 val = data['Measurement']
                 density = density_df[density_df['Sample']==samp_id]
-                density = density.sort_values('Time')
+                density = self.valid_series(density, samp_id, 'biomass_input', minimum=2)
+                if density is None:
+                    continue
                 density_val = density['Measurement']
                 density_time = density['Time']
 
@@ -444,7 +501,15 @@ class Analysis:
                     cfp_xmin, cfp_xmax = cfp.xlim()
                     xmin = max(od_xmin, cfp_xmin)
                     xmax = min(od_xmax, cfp_xmax)
-                    ttu = np.linspace(od_xmin, od_xmax, 100, endpoint=False)
+                    if xmin >= xmax:
+                        self.add_warning(
+                            samp_id, 'time_alignment', 'NON_OVERLAPPING_TIME_RANGE',
+                            f'Sample {samp_id} fluorescence and biomass time ranges do not overlap.'
+                        )
+                        continue
+                    data = data[(data.Time >= xmin) & (data.Time <= xmax)]
+                    fpt = data['Time'].values
+                    ttu = np.linspace(xmin, xmax, 100, endpoint=False)
                     # Fit model
                     try:
                         if meas_name==self.density_name:
@@ -455,10 +520,22 @@ class Analysis:
                             ksynth, _, _, _, _ = wf.infer_synthesis_rate_onestep(cfp, cod, ttu, 
                                                                                     degr=self.degr, eps_L=self.eps_L,
                                                                                     positive=True)
-                        data = data.assign(Rate=ksynth(fpt))
-                        rows.append(data)
-                    except:
-                        print('Fitting direct expression rates failed!', flush=True)
+                        rate = np.asarray(ksynth(fpt), dtype=float)
+                        finite = np.isfinite(rate)
+                        if not finite.any():
+                            self.add_warning(
+                                samp_id, 'direct_fit', 'NON_FINITE_RESULT',
+                                f'Direct expression-rate fitting returned no finite values for sample {samp_id} and signal {meas_name}.',
+                                signal=meas_name,
+                            )
+                            continue
+                        rows.append(data.loc[finite].assign(Rate=rate[finite]))
+                    except (ValueError, RuntimeError, FloatingPointError, np.linalg.LinAlgError):
+                        self.add_warning(
+                            samp_id, 'direct_fit', 'DIRECT_FIT_FAILED',
+                            f'Direct expression-rate fitting failed for sample {samp_id} and signal {meas_name}.',
+                            signal=meas_name,
+                        )
 
         if len(rows)>0:
             result = result.append(rows)
@@ -495,11 +572,15 @@ class Analysis:
             print('Computing inverse expression rate of sample %d of %d'%(si, n_samples), flush=True)
             si += 1
             for meas_name, data in samp_data.groupby('Signal_id'):
-                data = data.sort_values('Time')
+                data = self.valid_series(data, samp_id, 'inverse_input', minimum=2)
+                if data is None:
+                    continue
                 time = data['Time']
                 val = data['Measurement']
                 density = density_df[density_df['Sample']==samp_id]
-                density = density.sort_values('Time')
+                density = self.valid_series(density, samp_id, 'biomass_input', minimum=2)
+                if density is None:
+                    continue
                 density_val = density['Measurement']
                 density_time = density['Time']
 
@@ -516,24 +597,41 @@ class Analysis:
                     cfp_xmin, cfp_xmax = cfp.xlim()
                     xmin = max(od_xmin, cfp_xmin)
                     xmax = min(od_xmax, cfp_xmax)
-                    ttu = np.linspace(od_xmin, od_xmax, 100, endpoint=False)
+                    if xmin >= xmax:
+                        self.add_warning(
+                            samp_id, 'time_alignment', 'NON_OVERLAPPING_TIME_RANGE',
+                            f'Sample {samp_id} fluorescence and biomass time ranges do not overlap.'
+                        )
+                        continue
+                    data = data[(data.Time >= xmin) & (data.Time <= xmax)]
+                    fpt = data['Time'].values
+                    ttu = np.linspace(xmin, xmax, 100, endpoint=False)
                     # Fit model
-                    if meas_name==self.density_name:
-                        ksynth = inverse.characterize_growth(
-                            cod(ttu), 
-                            ttu, 
-                            n_gaussians=self.n_gaussians,
-                            epsilon=self.eps)
-                    else:
-                        ksynth = inverse.characterize(
-                            cfp(ttu), 
-                            cod(ttu), 
-                            ttu, 
-                            gamma=self.degr, 
-                            n_gaussians=self.n_gaussians,
-                            epsilon=self.eps)
-                    data = data.assign(Rate=ksynth(fpt))
-                    rows.append(data)
+                    try:
+                        if meas_name==self.density_name:
+                            ksynth = inverse.characterize_growth(
+                                cod(ttu), ttu, n_gaussians=self.n_gaussians,
+                                epsilon=self.eps)
+                        else:
+                            ksynth = inverse.characterize(
+                                cfp(ttu), cod(ttu), ttu, gamma=self.degr,
+                                n_gaussians=self.n_gaussians, epsilon=self.eps)
+                        rate = np.asarray(ksynth(fpt), dtype=float)
+                        finite = np.isfinite(rate)
+                        if not finite.any():
+                            self.add_warning(
+                                samp_id, 'inverse_fit', 'NON_FINITE_RESULT',
+                                f'Inverse expression-rate fitting returned no finite values for sample {samp_id} and signal {meas_name}.',
+                                signal=meas_name,
+                            )
+                            continue
+                        rows.append(data.loc[finite].assign(Rate=rate[finite]))
+                    except (ValueError, RuntimeError, FloatingPointError, np.linalg.LinAlgError):
+                        self.add_warning(
+                            samp_id, 'inverse_fit', 'INVERSE_FIT_FAILED',
+                            f'Inverse expression-rate fitting failed for sample {samp_id} and signal {meas_name}.',
+                            signal=meas_name,
+                        )
 
         if len(rows)>0:
             result = result.append(rows)
@@ -606,6 +704,11 @@ class Analysis:
         data = df[df['Chemical_id'].apply(lambda x: self.chemical_id in x)]
         if len(data)==0:
             # The data does not correspond to the specified chemicals
+            for sample in df['Sample'].unique():
+                self.add_warning(
+                    sample, 'analyte_selection', 'MISSING_ANALYTE_DATA',
+                    f'Sample {sample} does not contain the selected analyte {self.chemical_id}.'
+                )
             return pd.DataFrame()
         chem_data = []
         for id, samp_data in data.groupby('Sample'):
@@ -638,6 +741,11 @@ class Analysis:
         data = data[data['Chemical_id'].apply(lambda x: self.chemical_id2 in x)]
         if len(data)==0:
             # The data does not correspond to the specified chemicals
+            for sample in df['Sample'].unique():
+                self.add_warning(
+                    sample, 'analyte_selection', 'MISSING_ANALYTE_DATA',
+                    f'Sample {sample} does not contain both selected analytes.'
+                )
             return pd.DataFrame()
 
         chem_data = []
@@ -681,25 +789,41 @@ class Analysis:
         for samp_id,data in grouped_samples:
             # input values for Gompertz model fit
             oddf = density_df[density_df['Sample']==samp_id]
-            oddf = oddf.sort_values('Time')
+            oddf = oddf.replace([np.inf, -np.inf], np.nan).dropna(
+                subset=['Time', 'Measurement']
+            ).sort_values('Time').drop_duplicates('Time')
+            oddf = oddf[oddf['Measurement'] > 0]
             odt = oddf['Time'].values
             odval = oddf['Measurement'].values
-            odt = odt[odval>0.]
-            odval = odval[odval>0.]
-            #y = np.log(odval[odval>0.]) - np.log(np.nanmin(odval[odval>0.]))
+            if len(oddf) < 4:
+                self.add_warning(
+                    samp_id, 'gompertz_fit', 'INSUFFICIENT_BIOMASS',
+                    f'Sample {samp_id} has {len(oddf)} positive biomass points; at least 4 are required.'
+                )
+                continue
 
             # Fit Gompertz model
-            #try:
             self.bounds = ([1e-2,0.01,0,-24], [1,4,2,24])
-            z,_ = curve_fit(gompertz, odt, odval, bounds=self.bounds)
-            #except:
-            #    break
+            try:
+                z,_ = curve_fit(gompertz, odt, odval, bounds=self.bounds)
+            except (ValueError, RuntimeError, FloatingPointError, np.linalg.LinAlgError):
+                self.add_warning(
+                    samp_id, 'gompertz_fit', 'GOMPERTZ_FIT_FAILED',
+                    f'Gompertz biomass fitting failed for sample {samp_id}.'
+                )
+                continue
                 
             y0 = z[0]
             ymax = z[1]
             A = np.log(ymax/y0)
             um = z[2]
             l = z[3]
+            if not np.all(np.isfinite(z)) or not np.isfinite(A) or A <= 0 or um <= 0:
+                self.add_warning(
+                    samp_id, 'gompertz_fit', 'GOMPERTZ_FIT_FAILED',
+                    f'Gompertz biomass fitting returned invalid parameters for sample {samp_id}.'
+                )
+                continue
             print('y0, ymax, um, l', y0, ymax, um, l, flush=True)
 
             # Compute time of peak growth
@@ -712,41 +836,59 @@ class Analysis:
 
             # Compute alpha as slope of fluo vs od for each measurement name
             grouped_name = data.groupby('Signal_id')
-            for name,data in grouped_name:
+            for name,signal_data in grouped_name:
                 # fluorescence measurements
-                mdf = data[(data['Time']>=t1) & (data['Time']<=t2)]
+                mdf = signal_data[(signal_data['Time']>=t1) & (signal_data['Time']<=t2)]
                 mdf = mdf.sort_values('Time')
                 mval = mdf['Measurement'].values
                 mt = mdf['Time'].values
                 
                 # od measurements
-                oddf = oddf[(oddf['Time']>=t1)&(oddf['Time']<=t2)]
-                oddf = oddf.sort_values('Time')
-                odval = oddf['Measurement'].values
-                odt = oddf['Time'].values
+                phase_od = oddf[(oddf['Time']>=t1)&(oddf['Time']<=t2)].sort_values('Time')
+                phase_odval = phase_od['Measurement'].values
+                phase_odt = phase_od['Time'].values
                 
-                if len(mt)>1 and len(odt)>1:
+                row = signal_data.iloc[0].copy()
+                if len(mt)>1 and len(phase_odt)>1:
                     smval = interp1d(mt, mval, kind='linear', bounds_error=False)
-                    sodval = interp1d(odt, odval, kind='linear', bounds_error=False)
+                    sodval = interp1d(phase_odt, phase_odval, kind='linear', bounds_error=False)
 
-                    tmin = max(odt.min(), mt.min())
-                    tmax = min(odt.max(), mt.max())
+                    tmin = max(phase_odt.min(), mt.min())
+                    tmax = min(phase_odt.max(), mt.max())
+                    if tmin >= tmax:
+                        self.add_warning(
+                            samp_id, 'alpha_fit', 'NON_OVERLAPPING_TIME_RANGE',
+                            f'Sample {samp_id} signal {name} does not overlap biomass during exponential growth.',
+                            signal=name,
+                        )
+                        continue
                     times = np.linspace(tmin,tmax,100)
-
-                    z = np.polyfit(sodval(times), smval(times), 1)
-                    p = np.poly1d(z)
-
-                    # Get slope as alpha
-                    alpha = z[0]
-
-                    # Get dataframe with single row containing alpha for this sample, name
-                    data = data.iloc[0]
-                    data['Alpha'] = alpha
+                    try:
+                        alpha = np.polyfit(sodval(times), smval(times), 1)[0]
+                    except (ValueError, FloatingPointError, np.linalg.LinAlgError):
+                        self.add_warning(
+                            samp_id, 'alpha_fit', 'ALPHA_FIT_FAILED',
+                            f'Alpha fitting failed for sample {samp_id} and signal {name}.',
+                            signal=name,
+                        )
+                        continue
+                    if not np.isfinite(alpha):
+                        self.add_warning(
+                            samp_id, 'alpha_fit', 'ALPHA_FIT_FAILED',
+                            f'Alpha fitting returned a non-finite value for sample {samp_id} and signal {name}.',
+                            signal=name,
+                        )
+                        continue
+                    row['Alpha'] = alpha
                 else:
-                    data = data.iloc[0]
-                    data['Alpha'] = np.nan
+                    self.add_warning(
+                        samp_id, 'alpha_fit', 'INSUFFICIENT_DATA',
+                        f'Sample {samp_id} signal {name} has insufficient data during exponential growth.',
+                        signal=name,
+                    )
+                    continue
                 # Append to list of rows to append to result
-                rows.append(data)
+                rows.append(row)
         # Append alpha values to result df
         if len(rows)>0:
             result=result.append(rows)
@@ -762,9 +904,14 @@ class Analysis:
         alpha = self.ratiometric_alpha(df)
         if len(alpha)==0:
             return(alpha)
-        alpha_ref = alpha[alpha.Signal_id==self.ref_name]
+        alpha_ref = alpha[alpha.Signal_id.astype(str)==str(self.ref_name)]
         if len(alpha_ref)==0:
-            return(alpha_ref)
+            for sample in alpha['Sample'].unique():
+                self.add_warning(
+                    sample, 'rho_reference', 'MISSING_RHO_REFERENCE',
+                    f'Sample {sample} has no Alpha value for reference signal {self.ref_name}.'
+                )
+            return pd.DataFrame()
 
         # Matched on Sample, not by position: alpha holds one row per sample
         # and signal against one per sample in alpha_ref, so lengths differ.
@@ -775,7 +922,15 @@ class Analysis:
         )
         alpha = alpha.merge(ref, on='Sample', how='left')
         # A sample with no reference, or a zero reference, has no defined ratio.
-        ref_vals = alpha['AlphaRef'].replace(0, np.nan)
-        alpha = alpha.assign(Rho=alpha['Alpha'] / ref_vals).drop(columns=['AlphaRef'])
+        ref_vals = alpha['AlphaRef']
+        invalid = ref_vals.isna() | ~np.isfinite(ref_vals) | (ref_vals == 0)
+        for sample in alpha.loc[invalid, 'Sample'].unique():
+            self.add_warning(
+                sample, 'rho_reference', 'INVALID_RHO_REFERENCE',
+                f'Sample {sample} has a missing, zero, or non-finite reference Alpha.'
+            )
+        alpha = alpha.loc[~invalid].assign(
+            Rho=alpha.loc[~invalid, 'Alpha'] / ref_vals.loc[~invalid]
+        ).drop(columns=['AlphaRef'])
 
         return alpha

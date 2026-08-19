@@ -20,6 +20,11 @@ const FunctionSelection = ({ formInstance, options, label, name, rules }) => {
     formInstance.setFieldsValue({ [name]: newValue })
   }
 
+  const selectedOptions = selectedFunction
+    ? baseAnalysisOptions[selectedFunction.label] ||
+      baseAnalysisOptions[selectedFunction.value]
+    : null
+
   return (
     <>
       <Form.Item label={label}>
@@ -37,11 +42,8 @@ const FunctionSelection = ({ formInstance, options, label, name, rules }) => {
           />
         </div>
       </Form.Item>
-      {selectedFunction &&
-        baseAnalysisOptions[selectedFunction.label] &&
-        baseAnalysisOptions[selectedFunction.label].map((fieldProps, i) =>
-          renderItem(fieldProps, i, formInstance),
-        )}
+      {selectedOptions &&
+        selectedOptions.map((fieldProps, i) => renderItem(fieldProps, i, formInstance))}
     </>
   )
 }

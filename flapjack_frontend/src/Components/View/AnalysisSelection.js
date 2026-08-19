@@ -2,6 +2,7 @@ import React from 'react'
 import analysisOptions from './analysisOptions'
 import PropTypes from 'prop-types'
 import { Select, Form, Input } from 'antd' // Input kept for the hidden type field
+import { canonicalAnalysisValue } from './analysisProtocol'
 
 /** Renders Analysis Selection form items */
 export const renderItem = (props, i, formInstance) => {
@@ -48,7 +49,7 @@ const AnalysisSelection = ({ formInstance }) => {
 
   // Set initial values when either the form instance changes or the analysis type changes
   React.useEffect(() => {
-    formInstance.setFieldsValue({ type: selectedType })
+    formInstance.setFieldsValue({ type: canonicalAnalysisValue(selectedType) })
     formInstance.setFieldsValue(
       analysisOptions[selectedType].reduce((acc, opt) => {
         return { ...acc, [opt.name]: opt.initial_value }
@@ -57,7 +58,7 @@ const AnalysisSelection = ({ formInstance }) => {
   }, [selectedType, formInstance])
 
   const onSubmit = (values) => {
-    values.type = selectedType
+    values.type = canonicalAnalysisValue(selectedType)
     return values
   }
 
@@ -77,7 +78,7 @@ const AnalysisSelection = ({ formInstance }) => {
         onFinish={onSubmit}
       >
         <Form.Item name="type" style={{ display: 'none' }}>
-          <Input value={selectedType} />
+          <Input value={canonicalAnalysisValue(selectedType)} />
         </Form.Item>
         {analysisOptions[selectedType].map((fieldProps, i) =>
           renderItem(fieldProps, i, formInstance),

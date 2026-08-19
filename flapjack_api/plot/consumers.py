@@ -1,12 +1,15 @@
 # Built in imports.
 import json
 import asyncio
+import logging
+import uuid
 # Third Party imports.
 from channels.db import database_sync_to_async
 from channels.exceptions import DenyConnection
 from channels.generic.websocket import AsyncWebsocketConsumer
 from . import plotting
 from analysis.analysis import Analysis 
+from analysis.contracts import AnalysisError, normalize_analysis_params, validate_dataframe
 from analysis.util import *
 from registry.util import get_samples, get_measurements
 from registry.models import Signal, Chemical
@@ -15,6 +18,8 @@ import plotly
 import pandas as pd
 import time
 import math
+
+logger = logging.getLogger(__name__)
 
 # 'Vector' and 'Strain' are kept as aliases so pyFlapjack keeps working.
 group_fields = {
@@ -44,7 +49,10 @@ def fetch_measurements(params, signals, user):
 
 @database_sync_to_async
 def get_chemical_name(chemical_id):
-    return Chemical.objects.get(id=chemical_id).name
+    try:
+        return Chemical.objects.get(id=chemical_id).name
+    except Chemical.DoesNotExist:
+        return None
 
 
 @database_sync_to_async
@@ -235,28 +243,59 @@ class PlotConsumer(AsyncWebsocketConsumer):
 
     async def run_analysis(self, df, analysis):
         if len(df)==0:
-            return df
+            return df, []
         grouped = df.groupby('Sample')
         result_dfs = []
+        warnings = []
         n_samples = len(grouped)
         progress = 0
         for id,g in grouped:
             result_df = await analyze_sample(analysis, g)
-            result_dfs.append(result_df)
+            if result_df is not None and len(result_df):
+                result_dfs.append(result_df)
+            warnings.extend(analysis.pop_warnings())
             progress += 1
             await self.send(text_data=json.dumps({
                 'type': 'progress_update',
                 'data': {'progress': int(50 * progress / n_samples)}
             }))
             await asyncio.sleep(0)
-        df = pd.concat(result_dfs)
-        return df
+        if not result_dfs:
+            raise AnalysisError(
+                'NO_VALID_RESULTS',
+                'No selected samples contained enough valid data to produce this analysis.',
+                stage='analysis',
+                analysis=analysis.analysis_type,
+                warnings=warnings,
+            )
+        return pd.concat(result_dfs), warnings
 
     async def generate_data(self, event):
         params = event['params']
-        plot_options = params['plotOptions']
+        plot_options = params.get('plotOptions')
+        if not isinstance(plot_options, dict):
+            raise AnalysisError(
+                'MISSING_PLOT_OPTIONS', 'Plot options are required.', field='plotOptions'
+            )
+        missing_plot_option = next(
+            (field for field in ('normalize', 'subplots', 'markers', 'plot')
+             if field not in plot_options),
+            None,
+        )
+        if missing_plot_option:
+            raise AnalysisError(
+                'MISSING_PLOT_PARAMETER',
+                f'Plot option {missing_plot_option!r} is required.',
+                field=missing_plot_option,
+            )
         signals = params.get('signal')
+        warnings = []
+        analysis_params = params.get('analysis')
+        if analysis_params:
+            analysis_params = normalize_analysis_params(analysis_params, signals)
+            params = dict(params, analysis=analysis_params)
         df = await fetch_measurements(params, signals, self.user)
+        validate_dataframe(df, analysis_params.get('type') if analysis_params else None)
         if df is not None:
             # Default axis labels for raw measurements
             xlabel, ylabel = 'Time (h)', 'Measurement (AU)'
@@ -266,7 +305,6 @@ class PlotConsumer(AsyncWebsocketConsumer):
             plot_type = 'timeseries'
 
             # Run analysis if selected
-            analysis_params = params.get('analysis')
             if analysis_params:
                 # What analysis to run
                 analysis_type = analysis_params['type']
@@ -289,23 +327,58 @@ class PlotConsumer(AsyncWebsocketConsumer):
 
                 # Analyze the data
                 analysis = Analysis(analysis_params, signals)
-                df = await self.run_analysis(df, analysis)
+                df, warnings = await self.run_analysis(df, analysis)
 
             # Normalize the data if required
             normalize = plot_options['normalize']
             if normalize and normalize!='None':
                 print('normalizing', flush=True)
                 print('normalize', normalize, flush=True)
-                df = normalize_data(df, normalize, ycolumn)
+                try:
+                    df = normalize_data(df, normalize, ycolumn)
+                except (KeyError, ValueError, FloatingPointError) as exc:
+                    raise AnalysisError(
+                        'NORMALIZATION_FAILED', str(exc), stage='normalization',
+                        analysis=analysis_params.get('type') if analysis_params else None,
+                    )
+                if df is None or len(df) == 0 or ycolumn not in df:
+                    raise AnalysisError(
+                        'NORMALIZATION_FAILED',
+                        f'Normalization {normalize!r} produced no usable values.',
+                        stage='normalization',
+                        analysis=analysis_params.get('type') if analysis_params else None,
+                    )
 
             # Correct axis labels for heatmap and kymograph
             if plot_type == 'heatmap':
-                xlabel = 'Concentration ' + await get_chemical_name(analysis.chemical_id1) + ' (M)'
-                ylabel = 'Concentration ' + await get_chemical_name(analysis.chemical_id2) + ' (M)'
+                chemical1 = await get_chemical_name(analysis.chemical_id1)
+                chemical2 = await get_chemical_name(analysis.chemical_id2)
+                if not chemical1 or not chemical2:
+                    raise AnalysisError(
+                        'MISSING_ANALYTE', 'A selected heatmap analyte no longer exists.',
+                        stage='data_validation', analysis=analysis.analysis_type,
+                        field='analyte1' if not chemical1 else 'analyte2',
+                    )
+                xlabel = 'Concentration ' + chemical1 + ' (M)'
+                ylabel = 'Concentration ' + chemical2 + ' (M)'
             elif plot_type == 'kymograph':
-                xlabel = 'Concentration ' + await get_chemical_name(analysis.chemical_id) + ' (M)'
+                chemical = await get_chemical_name(analysis.chemical_id)
+                if not chemical:
+                    raise AnalysisError(
+                        'MISSING_ANALYTE', 'The selected analyte no longer exists.',
+                        stage='data_validation', analysis=analysis.analysis_type,
+                        field='analyte',
+                    )
+                xlabel = 'Concentration ' + chemical + ' (M)'
             elif plot_type == 'induction':
-                xlabel = 'Concentration ' + await get_chemical_name(analysis.chemical_id) + ' (M)'
+                chemical = await get_chemical_name(analysis.chemical_id)
+                if not chemical:
+                    raise AnalysisError(
+                        'MISSING_ANALYTE', 'The selected analyte no longer exists.',
+                        stage='data_validation', analysis=analysis.analysis_type,
+                        field='analyte',
+                    )
+                xlabel = 'Concentration ' + chemical + ' (M)'
 
             # Plot figure
             subplots = plot_options['subplots']
@@ -313,34 +386,57 @@ class PlotConsumer(AsyncWebsocketConsumer):
             normalize = plot_options['normalize']
             mean = 'Mean' in plot_options['plot']
             std = 'std' in plot_options['plot']
-            fig = await self.plot(df, 
-                                groupby1=subplots, 
-                                groupby2=markers,
-                                mean=mean, std=std,
-                                xlabel=xlabel, ylabel=ylabel,
-                                xcolumn=xcolumn, ycolumn=ycolumn,
-                                plot_type=plot_type,
-                                normalize=normalize
-                                )
+            try:
+                fig = await self.plot(df,
+                                    groupby1=subplots,
+                                    groupby2=markers,
+                                    mean=mean, std=std,
+                                    xlabel=xlabel, ylabel=ylabel,
+                                    xcolumn=xcolumn, ycolumn=ycolumn,
+                                    plot_type=plot_type,
+                                    normalize=normalize
+                                    )
+            except (KeyError, ValueError, TypeError) as exc:
+                raise AnalysisError(
+                    'PLOTTING_FAILED', str(exc), stage='plotting',
+                    analysis=analysis_params.get('type') if analysis_params else None,
+                )
             if fig:
                 fig_json = fig.to_json()
             else:
                 fig_json = ''
-        else:
-            print('No samples found for query params', flush=True)
-            fig_json = ''
         # Send back traces to plot
         await self.send(text_data=json.dumps({
             'type': 'plot_data',
             'data': {
-                'figure': fig_json
+                'figure': fig_json,
+                'warnings': warnings,
             }
         }))
+
+    async def send_analysis_error(self, error, error_id):
+        payload = dict(error.data)
+        payload['error_id'] = error_id
+        await self.send(text_data=json.dumps({'type': 'analysis_error', 'data': payload}))
         
     async def receive(self, text_data):
-        data = json.loads(text_data)
-        if data['type'] == 'plot':
-            await self.generate_data({'params': data['parameters']})
+        error_id = str(uuid.uuid4())
+        try:
+            data = json.loads(text_data)
+            if data.get('type') != 'plot':
+                raise AnalysisError(
+                    'INVALID_REQUEST_TYPE', 'Expected a plot request.', field='type'
+                )
+            await self.generate_data({'params': data.get('parameters', {})})
+        except AnalysisError as exc:
+            await self.send_analysis_error(exc, error_id)
+        except Exception:
+            logger.exception('Unexpected plot request failure error_id=%s request=%r', error_id, text_data)
+            await self.send_analysis_error(AnalysisError(
+                'UNEXPECTED_SERVER_ERROR',
+                'The server could not complete this request. Please report the error identifier.',
+                stage='server',
+            ), error_id)
 
     async def disconnect(self, message):
         await self.channel_layer.group_discard(
