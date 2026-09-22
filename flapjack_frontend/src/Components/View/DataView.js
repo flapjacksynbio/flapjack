@@ -54,7 +54,7 @@ const DataView = ({ title, onRename, plotData, plotId, addPlot }) => {
         },
       },
       onError(event, socket) {
-        message.error('There was an error processing the data. Please try again')
+        message.error('The data could not be processed.')
         setLoadingData(null)
         socket.close()
       },
