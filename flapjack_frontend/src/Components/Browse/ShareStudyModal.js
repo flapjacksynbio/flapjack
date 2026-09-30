@@ -63,7 +63,7 @@ const ShareStudyModal = ({ study, setModalStudy, onChanged }) => {
       setPending((list) => [...list, user])
       setIdentifier('')
     } catch {
-      setError('Could not look that person up. Please try again.')
+      setError('Could not look that person up.')
     } finally {
       setResolving(false)
     }

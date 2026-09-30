@@ -41,7 +41,7 @@ const BrowseTable = ({ dataUrl, columns, emptyText, search = '', refreshKey = 0 
       message.error(
         e && e.response && e.response.status === 401
           ? 'Your session expired. Please sign in again.'
-          : 'Could not reach the server. Please try again.',
+          : 'Could not reach the server.',
       )
       setLoading(false)
       return {}

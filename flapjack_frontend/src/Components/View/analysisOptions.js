@@ -9,7 +9,7 @@ import FunctionSelection from './FunctionSelection'
  */
 export const baseAnalysisOptions = {
   None: [],
-  'Max expression': [
+  'Max Expression': [
     {
       name: 'bg_correction',
       label: 'Std. Devs',
@@ -45,7 +45,7 @@ export const baseAnalysisOptions = {
       renderer: Checkbox,
     },
   ],
-  'Mean expression': [
+  'Mean Expression': [
     {
       name: 'bg_correction',
       label: 'Std. Devs',
@@ -141,7 +141,7 @@ export const baseAnalysisOptions = {
       renderer: Input,
     },
   ],
-  'Expression rate (indirect)': [
+  'Expression Rate (indirect)': [
     {
       name: 'pre_smoothing',
       label: 'Initial smoothing',
@@ -195,7 +195,7 @@ export const baseAnalysisOptions = {
       renderer: Checkbox,
     },
   ],
-  'Expression rate (direct)': [
+  'Expression Rate (direct)': [
     {
       name: 'degr',
       label: 'Reporter degradation rate (per hour)',
@@ -424,8 +424,8 @@ export const functionAnalysisOptions = {
       name: 'function',
       label: 'Function',
       options: [
-        { label: 'Mean expression', value: 'Mean expression' },
-        { label: 'Max expression', value: 'Max expression' },
+        { label: 'Mean Expression', value: 'Mean Expression' },
+        { label: 'Max Expression', value: 'Max Expression' },
         { label: 'Rho', value: 'Rho' },
         { label: 'Alpha', value: 'Alpha' },
       ],
@@ -452,8 +452,8 @@ export const functionAnalysisOptions = {
       name: 'function',
       label: 'Function',
       options: [
-        { label: 'Mean expression', value: 'Mean expression' },
-        { label: 'Max expression', value: 'Max expression' },
+        { label: 'Mean Expression', value: 'Mean Expression' },
+        { label: 'Max Expression', value: 'Max Expression' },
         { label: 'Rho', value: 'Rho' },
         { label: 'Alpha', value: 'Alpha' },
       ],
@@ -474,8 +474,8 @@ export const functionAnalysisOptions = {
       name: 'function',
       label: 'Function',
       options: [
-        { label: 'Expression rate (direct)', value: 'Expression rate (direct)' },
-        { label: 'Expression rate (indirect)', value: 'Expression rate (indirect)' },
+        { label: 'Expression Rate (direct)', value: 'Expression Rate (direct)' },
+        { label: 'Expression Rate (indirect)', value: 'Expression Rate (indirect)' },
       ],
       requiresForm: true,
       isFormItem: true,
