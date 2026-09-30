@@ -100,9 +100,7 @@ const SelectOrCreate = ({
       updateSelected({ value: success.id, label: success.name || success.names })
       setVisible(false)
     } else {
-      message.error(
-        `There was an error creating the ${buttonCreateLabel || label}.`,
-      )
+      message.error(`There was an error creating the ${buttonCreateLabel || label}.`)
     }
   }
 
