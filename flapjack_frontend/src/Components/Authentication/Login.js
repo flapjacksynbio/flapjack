@@ -37,7 +37,7 @@ const Login = ({ goToSignUp }) => {
     try {
       await api.logIn({ username, password })
     } catch (e) {
-      setErrors(['Credentials are invalid! Please try again.'])
+      setErrors(['Credentials are invalid.'])
     }
   }
 

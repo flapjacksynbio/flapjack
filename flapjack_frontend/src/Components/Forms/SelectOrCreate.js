@@ -101,7 +101,7 @@ const SelectOrCreate = ({
       setVisible(false)
     } else {
       message.error(
-        `There was an error creating the ${buttonCreateLabel || label}. Please try again`,
+        `There was an error creating the ${buttonCreateLabel || label}.`,
       )
     }
   }

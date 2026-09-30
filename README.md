@@ -1,17 +1,13 @@
-# Flapjack 2
+# Flapjack
 
 Flapjack is a data management and analysis tool for the characterization of genetic
 circuits. It stores measurements together with the part composition and experimental
 context that produced them, and provides querying, plotting, and analysis through a web
 interface and a REST API.
 
-Flapjack 2 is the current line of development. Its principal change is that a sample may
-hold more than one strain, so a defined microbial consortium can be recorded as such
-rather than flattened to a single organism.
-
 ---
 
-## Relationship to Flapjack 1
+## History of Flapjack
 
 Flapjack was published in 2021 by the Rudge Lab at Newcastle University together with
 collaborators:
@@ -22,15 +18,11 @@ collaborators:
 > Characterization.* ACS Synthetic Biology **2021**, 10 (1), 183-191.
 > <https://doi.org/10.1021/acssynbio.0c00554>
 
-If you use Flapjack in published work, please cite that paper. A separate paper covering
-Flapjack 2 is in preparation.
-
-Development is now maintained by the [Genetic Logic Lab](https://geneticlogiclab.org/) at
-the University of Colorado Boulder.
+If you use Flapjack in published work, please cite that paper. 
 
 ### Consolidated from three repositories
 
-Flapjack 1 was developed across three separate repositories, which are now archived and
+Flapjack was developed across three separate repositories, which are now archived and
 read-only:
 
 | Repository | Role |
@@ -39,14 +31,14 @@ read-only:
 | `flapjacksynbio/flapjack_frontend` | React web client |
 | `flapjacksynbio/flapjack_fullstack` | a later, more advanced line of development |
 
-Flapjack 2 consolidates all three into a single repository. Work that existed only on
+Flapjack now consolidates all three into a single repository. Work that existed only on
 unmerged branches was reviewed and carried across, including the asynchronous database
 handling, the API reference, and multi-strain sample parsing. The archived repositories
 remain publicly readable.
 
 ---
 
-## What is new in Flapjack 2
+## What is new in Flapjack
 
 ### Data model
 
