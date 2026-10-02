@@ -112,47 +112,6 @@ const Selection = ({ onSubmit }) => {
     }
   }
 
-  // Select a study an all related assays
-  const setStudiesAndChildAssays = async (value, checked) => {
-    addSelected(value, checked, setSelectedStudies)
-    if (!checked) return
-
-    api
-      .get('assay', null, { study: value.id })
-      .then(({ results }) =>
-        results.forEach(({ id, name }) => setAssaysAndChildren({ id: +id, name }, true)),
-      )
-      .catch(() => null)
-  }
-
-  const url_to_setter = {
-    vector_in_assay: setSelectedVectors,
-    strain_in_assay: setSelectedStrain,
-    media_in_assay: setSelectedMedia,
-    signal_in_assay: setSelectedSignals,
-  }
-
-  // Set an assay and all related vectors, strains, media and signals
-  const setAssaysAndChildren = async (value, checked) => {
-    addSelected(value, checked, setSelectedAssays)
-    if (!checked) return
-
-    Object.entries(url_to_setter).forEach(([url, setter]) => {
-      api
-        .get(url, null, { id: value.id })
-        .then(({ results }) =>
-          results.reduce((acc, { id, name }) => ({ ...acc, [id]: { id, name } }), {}),
-        )
-        .then((res) =>
-          setter((selected) => [
-            ...selected.filter(({ id }) => !res[id]),
-            ...Object.values(res),
-          ]),
-        )
-        .catch(() => null)
-    })
-  }
-
   const queryFields = [
     {
       url: 'study',
@@ -160,7 +119,7 @@ const Selection = ({ onSubmit }) => {
       header: 'Studies',
       selected: selectedStudies,
       _selectedSetter: setSelectedStudies,
-      setSelected: setStudiesAndChildAssays,
+      setSelected: (value, checked) => addSelected(value, checked, setSelectedStudies),
     },
     {
       url: 'assay',
@@ -168,7 +127,7 @@ const Selection = ({ onSubmit }) => {
       header: 'Assays',
       selected: selectedAssays,
       _selectedSetter: setSelectedAssays,
-      setSelected: setAssaysAndChildren,
+      setSelected: (value, checked) => addSelected(value, checked, setSelectedAssays),
     },
     {
       url: 'vector',
