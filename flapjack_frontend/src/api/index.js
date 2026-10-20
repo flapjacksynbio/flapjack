@@ -15,6 +15,8 @@ const normalizeBaseUrl = (baseUrl, envName) => {
 
 const normalizePath = (path) => path.replace(/^\/+/, '')
 
+const REQUEST_TIMEOUT_MS = 30 * 1000
+
 const decodeJwtPayload = (token) => {
   const encodedPayload = token.split('.')[1]
   if (!encodedPayload) return null
@@ -133,11 +135,19 @@ class Api {
       path = `${path}/`
     }
     const authedHeaders = await this.authedHeaders()
-    return fetch(this.url(path, query), {
-      method,
-      headers: { ...authedHeaders, ...headers },
-      ...(body && { body: JSON.stringify(body) }),
-    }).then((resp) => this.parseResponse(resp))
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+    try {
+      return await fetch(this.url(path, query), {
+        method,
+        headers: { ...authedHeaders, ...headers },
+        ...(body && { body: JSON.stringify(body) }),
+        signal: controller.signal,
+      }).then((resp) => this.parseResponse(resp))
+    } finally {
+      clearTimeout(timeoutId)
+    }
   }
 
   /**
